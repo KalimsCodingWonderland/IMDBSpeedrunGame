@@ -5,8 +5,6 @@ import requests
 from algorithms import bfs, dijkstra
 from movie_graph import *
 
-#print("HELLO WORLD")
-
 app = Flask(__name__)
 API_KEY = '9f981a4c4394f62d994979dbb6ee0230'
 BASE_URL = 'https://api.themoviedb.org/3/'
@@ -45,13 +43,6 @@ def search_movie():
     return jsonify(movie_details)
 
 # backend/app.py
-
-# backend/app.py
-
-# backend/app.py
-import logging
-
-logging.basicConfig(level=logging.DEBUG)
 
 @app.route('/search_path', methods=['GET'])
 def search_path():

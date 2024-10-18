@@ -2,6 +2,7 @@
 import heapq
 from collections import defaultdict, deque
 import requests
+import logging
 
 API_KEY = '9f981a4c4394f62d994979dbb6ee0230'
 BASE_URL = 'https://api.themoviedb.org/3/'
@@ -50,6 +51,7 @@ class MovieGraph:
         return None
 
     def get_movie_data(self, movie_id):
+        logging.debug(f"Fetching data for movie ID: {movie_id}")
         details_response = requests.get(
             f"{BASE_URL}movie/{movie_id}",
             params={'api_key': API_KEY}
@@ -68,10 +70,13 @@ class MovieGraph:
                 'cast': credits.get('cast', []),
                 'crew': credits.get('crew', [])
             }
+            logging.debug(f"Fetched data for movie: {movie_data['title']} ({movie_id})")
             return movie_data
+        logging.warning(f"Failed to fetch data for movie ID: {movie_id}")
         return None
 
     def get_movies_by_person(self, person_id):
+
         response = requests.get(
             f"{BASE_URL}person/{person_id}/movie_credits",
             params={'api_key': API_KEY}
@@ -81,6 +86,9 @@ class MovieGraph:
             movies = credits.get('cast', []) + credits.get('crew', [])
             # Sort movies by popularity and limit to top 5
             movies = sorted(movies, key=lambda x: x.get('popularity', 0), reverse=True)
+            for movie in movies:
+                print (movie.get('title'))
+                logging.debug(f"  - {movie.get('title', 'Unknown Title')} (ID: {movie.get('id', 'Unknown ID')})")
             return movies[:5]
         return []
 
@@ -132,7 +140,9 @@ class MovieGraph:
 
             for person in movie_data.get('cast', []) + movie_data.get('crew', []):
                 person_id = person['id']
+                person_name = person['name']
                 person_movies = self.get_movies_by_person(person_id)
+                print(f"Exploring movies of {person_name}")
                 for person_movie in person_movies[:5]:
                     person_movie_id = person_movie['id']
                     if person_movie_id not in visited_movies:
@@ -142,4 +152,3 @@ class MovieGraph:
 
         self.build_connections()
         return False
-
