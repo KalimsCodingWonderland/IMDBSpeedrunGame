@@ -5,6 +5,8 @@ import requests
 from algorithms import bfs, dijkstra
 from movie_graph import *
 
+#print("HELLO WORLD")
+
 app = Flask(__name__)
 API_KEY = '9f981a4c4394f62d994979dbb6ee0230'
 BASE_URL = 'https://api.themoviedb.org/3/'
