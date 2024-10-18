@@ -1,7 +1,6 @@
 # backend/algorithms.py
 from collections import deque
 import heapq
-import logging
 
 def bfs(graph, start_movie, end_movie):
     visited = set()
@@ -29,7 +28,6 @@ def dijkstra(graph, start_movie, end_movie):
 
     while heap:
         cost, movie, path, connections = heapq.heappop(heap)
-
         if movie in visited:
             continue
 
