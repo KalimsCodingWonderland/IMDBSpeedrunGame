@@ -44,9 +44,12 @@ def search_movie():
 
 # backend/app.py
 
+<<<<<<< HEAD
 # backend/app.py
 
 # backend/app.py
+=======
+>>>>>>> 45234929 (Minor Changes.)
 import logging
 
 logging.basicConfig(level=logging.DEBUG)
@@ -57,13 +60,19 @@ def search_path():
     end_movie_title = request.args.get('end')
     algorithm = request.args.get('algorithm', 'bfs')
 
+<<<<<<< HEAD
     logging.debug(f"Searching path from '{start_movie_title}' to '{end_movie_title}' using {algorithm}")
 
+=======
+>>>>>>> 45234929 (Minor Changes.)
     graph = MovieGraph()
     try:
         path_found = graph.build_movie_graph(start_movie_title, end_movie_title)
     except Exception as e:
+<<<<<<< HEAD
         logging.error(f"Error building movie graph: {str(e)}")
+=======
+>>>>>>> 45234929 (Minor Changes.)
         return jsonify({'error': f'Error building movie graph: {str(e)}'}), 500
 
     if not path_found:
@@ -75,10 +84,17 @@ def search_path():
     try:
         if algorithm == 'bfs':
             result = bfs(graph, start_movie_id, end_movie_id)
+<<<<<<< HEAD
         else:
             result = dijkstra(graph, start_movie_id, end_movie_id)
     except Exception as e:
         logging.error(f"Error in pathfinding algorithm: {str(e)}")
+=======
+
+        else:
+            result = dijkstra(graph, start_movie_id, end_movie_id)
+    except Exception as e:
+>>>>>>> 45234929 (Minor Changes.)
         return jsonify({'error': f'Error in pathfinding algorithm: {str(e)}'}), 500
 
     def convert_path(result):
@@ -90,8 +106,11 @@ def search_path():
 
     path_result = convert_path(result)
 
+<<<<<<< HEAD
     logging.debug(f"Path found: {path_result}")
 
+=======
+>>>>>>> 45234929 (Minor Changes.)
     return jsonify({
         f'{algorithm}_path': path_result
     })
