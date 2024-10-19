@@ -258,7 +258,7 @@ def dijkstra_tmdb(start_movie_title, end_movie_title):
     logger.info(f"Total unique movies explored: {len(processed_movies)}")
     return None, list(processed_movies)
 
-def a_star_tmdb(start_movie_title, end_movie_title):
+def bidirectional_bfs_tmdb(start_movie_title, end_movie_title):
     start_time = time.perf_counter()
 
     # Search for start and end movies
@@ -275,168 +275,127 @@ def a_star_tmdb(start_movie_title, end_movie_title):
     start_id = int(start_movie['id'])
     end_id = int(end_movie['id'])
 
-    logger.info(
-        f"Starting Bidirectional A* algorithm from '{start_movie['title']}' (ID: {start_id}) to '{end_movie['title']}' (ID: {end_id})")
+    logger.info(f"Starting Bidirectional BFS from '{start_movie['title']}' (ID: {start_id}) to '{end_movie['title']}' (ID: {end_id})")
 
     # Initialize forward search structures
-    forward_heap = [(heuristic(start_id, end_id), 0, start_id)]
-    forward_visited = {start_id: 0}
-    forward_predecessors = {}
+    forward_queue = [start_id]
+    forward_visited = {start_id: None}
 
     # Initialize backward search structures
-    backward_heap = [(heuristic(end_id, start_id), 0, end_id)]
-    backward_visited = {end_id: 0}
-    backward_predecessors = {}
+    backward_queue = [end_id]
+    backward_visited = {end_id: None}
 
-    # To keep track of processed nodes
+    # Variable to store the meeting point
     meeting_movie = None
-    minimal_total_cost = float('inf')
 
-    while forward_heap and backward_heap:
+    while forward_queue and backward_queue:
         # Expand forward search
-        if forward_heap:
-            f_score_forward, g_score_forward, current_forward = heapq.heappop(forward_heap)
-            current_forward_movie = get_movie_details_cached(current_forward)
+        current_forward = forward_queue.pop(0)
+        logger.info(f"Forward Exploring movie: '{get_movie_details_cached(current_forward)['title']}' (ID: {current_forward})")
 
-            if current_forward in forward_predecessors:
-                # Already processed
-                pass
-            else:
-                if not current_forward_movie:
+        credits = get_movie_credits_cached(current_forward)
+        if credits:
+            all_people = credits.get('cast', []) + credits.get('crew', [])
+            sorted_people = sorted(all_people, key=lambda x: x.get('popularity', 0), reverse=True)[:50]
+
+            for person in sorted_people:
+                person_id = int(person['id'])
+                person_name = person['name']
+                logger.info(f"Forward Exploring connections through: {person_name} (ID: {person_id})")
+
+                person_movies = get_person_movies_cached(person_id)
+                if not person_movies:
                     continue
-                logger.info(
-                    f"Forward Exploring movie: '{current_forward_movie['title']}' (ID: {current_forward}) with f_score {f_score_forward}")
-                forward_predecessors[current_forward] = None  # Mark as visited
 
-                credits = get_movie_credits_cached(current_forward)
-                if credits:
-                    all_people = credits.get('cast', []) + credits.get('crew', [])
-                    sorted_people = sorted(all_people, key=lambda x: x.get('popularity', 0), reverse=True)[:50]
+                all_movies = person_movies.get('cast', []) + person_movies.get('crew', [])
+                sorted_movies = sorted(all_movies, key=lambda x: (x.get('release_date', ''), x.get('popularity', 0)), reverse=True)[:50]
 
-                    for person in sorted_people:
-                        person_id = int(person['id'])
-                        person_name = person['name']
-                        logger.info(f"Forward Exploring connections through: {person_name} (ID: {person_id})")
+                for movie in sorted_movies:
+                    next_movie_id = int(movie['id'])
 
-                        person_movies = get_person_movies_cached(person_id)
-                        if not person_movies:
-                            continue
+                    if next_movie_id in forward_visited:
+                        continue
 
-                        all_movies = person_movies.get('cast', []) + person_movies.get('crew', [])
-                        sorted_movies = sorted(all_movies, key=lambda x: (x.get('release_date', ''), x.get('popularity', 0)),
-                                              reverse=True)[:50]
+                    forward_visited[next_movie_id] = current_forward
+                    forward_queue.append(next_movie_id)
+                    logger.info(f"Forward Adding movie to queue: '{movie['title']}' (ID: {next_movie_id})")
 
-                        for movie in sorted_movies:
-                            next_movie_id = int(movie['id'])
-                            if next_movie_id in forward_visited:
-                                continue
-
-                            tentative_g_score = g_score_forward + 1
-                            h_score = heuristic(next_movie_id, end_id)
-                            f_score_new = tentative_g_score + h_score
-
-                            if next_movie_id not in forward_visited or tentative_g_score < forward_visited[next_movie_id]:
-                                forward_visited[next_movie_id] = tentative_g_score
-                                forward_predecessors[next_movie_id] = current_forward
-                                logger.info(
-                                    f"Forward Adding movie to heap: '{movie['title']}' (ID: {next_movie_id}) with f_score {f_score_new}")
-                                heapq.heappush(forward_heap, (f_score_new, tentative_g_score, next_movie_id))
-
-                                # Check if this node has been visited by backward search
-                                if next_movie_id in backward_visited:
-                                    total_cost = tentative_g_score + backward_visited[next_movie_id]
-                                    if total_cost < minimal_total_cost:
-                                        minimal_total_cost = total_cost
-                                        meeting_movie = next_movie_id
+                    # Check if this node has been visited by backward search
+                    if next_movie_id in backward_visited:
+                        meeting_movie = next_movie_id
+                        logger.info(f"Meeting point found at movie ID: {meeting_movie}")
+                        break
+                if meeting_movie:
+                    break
+        if meeting_movie:
+            break
 
         # Expand backward search
-        if backward_heap:
-            f_score_backward, g_score_backward, current_backward = heapq.heappop(backward_heap)
-            current_backward_movie = get_movie_details_cached(current_backward)
+        current_backward = backward_queue.pop(0)
+        logger.info(f"Backward Exploring movie: '{get_movie_details_cached(current_backward)['title']}' (ID: {current_backward})")
 
-            if current_backward in backward_predecessors:
-                # Already processed
-                pass
-            else:
-                if not current_backward_movie:
+        credits = get_movie_credits_cached(current_backward)
+        if credits:
+            all_people = credits.get('cast', []) + credits.get('crew', [])
+            sorted_people = sorted(all_people, key=lambda x: x.get('popularity', 0), reverse=True)[:50]
+
+            for person in sorted_people:
+                person_id = int(person['id'])
+                person_name = person['name']
+                logger.info(f"Backward Exploring connections through: {person_name} (ID: {person_id})")
+
+                person_movies = get_person_movies_cached(person_id)
+                if not person_movies:
                     continue
-                logger.info(
-                    f"Backward Exploring movie: '{current_backward_movie['title']}' (ID: {current_backward}) with f_score {f_score_backward}")
-                backward_predecessors[current_backward] = None  # Mark as visited
 
-                credits = get_movie_credits_cached(current_backward)
-                if credits:
-                    all_people = credits.get('cast', []) + credits.get('crew', [])
-                    sorted_people = sorted(all_people, key=lambda x: x.get('popularity', 0), reverse=True)[:50]
+                all_movies = person_movies.get('cast', []) + person_movies.get('crew', [])
+                sorted_movies = sorted(all_movies, key=lambda x: (x.get('release_date', ''), x.get('popularity', 0)), reverse=True)[:50]
 
-                    for person in sorted_people:
-                        person_id = int(person['id'])
-                        person_name = person['name']
-                        logger.info(f"Backward Exploring connections through: {person_name} (ID: {person_id})")
+                for movie in sorted_movies:
+                    next_movie_id = int(movie['id'])
 
-                        person_movies = get_person_movies_cached(person_id)
-                        if not person_movies:
-                            continue
+                    if next_movie_id in backward_visited:
+                        continue
 
-                        all_movies = person_movies.get('cast', []) + person_movies.get('crew', [])
-                        sorted_movies = sorted(all_movies, key=lambda x: (x.get('release_date', ''), x.get('popularity', 0)),
-                                              reverse=True)[:50]
+                    backward_visited[next_movie_id] = current_backward
+                    backward_queue.append(next_movie_id)
+                    logger.info(f"Backward Adding movie to queue: '{movie['title']}' (ID: {next_movie_id})")
 
-                        for movie in sorted_movies:
-                            next_movie_id = int(movie['id'])
-                            if next_movie_id in backward_visited:
-                                continue
-
-                            tentative_backward_cost = g_score_backward + 1
-                            h_score = heuristic(next_movie_id, start_id)
-                            f_score_new = tentative_backward_cost + h_score
-
-                            if next_movie_id not in backward_visited or tentative_backward_cost < backward_visited[next_movie_id]:
-                                backward_visited[next_movie_id] = tentative_backward_cost
-                                backward_predecessors[next_movie_id] = current_backward
-                                logger.info(
-                                    f"Backward Adding movie to heap: '{movie['title']}' (ID: {next_movie_id}) with f_score {f_score_new}")
-                                heapq.heappush(backward_heap, (f_score_new, tentative_backward_cost, next_movie_id))
-
-                                # Check if this node has been visited by forward search
-                                if next_movie_id in forward_visited:
-                                    total_cost = tentative_backward_cost + forward_visited[next_movie_id]
-                                    if total_cost < minimal_total_cost:
-                                        minimal_total_cost = total_cost
-                                        meeting_movie = next_movie_id
-
-        # Check for meeting point
-        if meeting_movie is not None:
-            # Reconstruct path from start to meeting_movie
-            path_forward = []
-            current = meeting_movie
-            while current != start_id:
-                path_forward.append(current)
-                current = forward_predecessors.get(current)
-                if current is None:
+                    # Check if this node has been visited by forward search
+                    if next_movie_id in forward_visited:
+                        meeting_movie = next_movie_id
+                        logger.info(f"Meeting point found at movie ID: {meeting_movie}")
+                        break
+                if meeting_movie:
                     break
-            path_forward.append(start_id)
-            path_forward.reverse()
+        if meeting_movie:
+            break
 
-            # Reconstruct path from meeting_movie to end
-            path_backward = []
-            current = meeting_movie
-            while current != end_id:
-                current = backward_predecessors.get(current)
-                if current is None:
-                    break
-                path_backward.append(current)
+    if meeting_movie is None:
+        logger.info("No path found")
+        return None, None
 
-            # Combine both paths
-            full_path = path_forward + path_backward
+    # Reconstruct the path
+    path_forward = []
+    current = meeting_movie
+    while current is not None:
+        path_forward.append(current)
+        current = forward_visited[current]
 
-            end_time = time.perf_counter()
-            logger.info(f"Bidirectional A* execution time: {end_time - start_time:.2f} seconds")
-            logger.info(f"Bidirectional A* Path found! Total movies in path: {len(full_path)}")
-            return full_path, list(set(forward_visited.keys()).union(set(backward_visited.keys())))
+    path_backward = []
+    current = backward_visited[meeting_movie]
+    while current is not None:
+        path_backward.append(current)
+        current = backward_visited[current]
 
-    logger.info("No path found")
-    return None, list(set(forward_visited.keys()).union(set(backward_visited.keys())))
+    full_path = path_forward[::-1] + path_backward
+
+    end_time = time.perf_counter()
+    logger.info(f"Bidirectional BFS execution time: {end_time - start_time:.2f} seconds")
+    logger.info(f"Bidirectional BFS Path found! Total movies in path: {len(full_path)}")
+
+    return full_path, list(set(forward_visited.keys()).union(set(backward_visited.keys())))
+
 
 def format_path(path):
     formatted_path = {
@@ -473,14 +432,14 @@ def format_path(path):
 def search_path():
     start_movie_title = request.args.get('start')
     end_movie_title = request.args.get('end')
-    algorithm = request.args.get('algorithm', 'dijkstra')
+    algorithm = request.args.get('algorithm', 'bfs').lower()  # Default to BFS
 
     print(f"Received request to find path from '{start_movie_title}' to '{end_movie_title}' using {algorithm}")
 
-    if algorithm == 'dijkstra':
+    if algorithm == 'bfs':
+        path, processed_movies = bidirectional_bfs_tmdb(start_movie_title, end_movie_title)
+    elif algorithm == 'dijkstra':
         path, processed_movies = dijkstra_tmdb(start_movie_title, end_movie_title)
-    elif algorithm == 'a_star':
-        path, processed_movies = a_star_tmdb(start_movie_title, end_movie_title)
     else:
         return jsonify({'error': 'Invalid algorithm specified'}), 400
 
@@ -503,21 +462,12 @@ def search_path():
                 'poster_path': details.get('poster_path')
             })
 
-    # Ensure the goal movie is last in the processed_movies list
-    if path:
-        goal_movie_id = path[-1]
-        # Find the goal movie object
-        goal_movie = next((movie for movie in formatted_processed if movie['id'] == goal_movie_id), None)
-        if goal_movie:
-            # Remove the goal movie from its current position
-            formatted_processed = [movie for movie in formatted_processed if movie['id'] != goal_movie_id]
-            # Insert it at the beginning
-            formatted_processed.insert(0, goal_movie)
-
     return jsonify({
         f'{algorithm}_path': formatted_path,
         'processed_movies': formatted_processed
     })
+
+
 
 @app.route('/search_movie', methods=['GET'])
 def search_movie_route():

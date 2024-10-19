@@ -129,7 +129,7 @@ function App() {
             }));
 
         // Take the top 100 movies
-        setTopProcessedMovies(sortedMovies.slice(0, 100));
+        setTopProcessedMovies(sortedMovies.slice(0, 15));
 
       }
 
@@ -199,7 +199,7 @@ function App() {
         <label>Select Algorithm: </label>
         <select value={algorithm} onChange={(e) => setAlgorithm(e.target.value)}>
           <option value="dijkstra">Dijkstra's Algorithm</option>
-          <option value="a_star">A* Search</option>
+          <option value="bfs">Bidirectional BFS</option>
         </select>
       </div>
 
@@ -225,7 +225,7 @@ function App() {
           <h2>
             {algorithm === 'dijkstra'
               ? "Dijkstra's"
-              : 'A*'}{' '}
+              : 'Breadth First Search'}{' '}
             Path:
           </h2>
           <ul>
