@@ -37,7 +37,8 @@ def search_movie():
         movie_details.append({
             'title': movie['title'],
             'year': movie.get('release_date', '')[:4] if movie.get('release_date') else 'N/A',
-            'director': director if director else 'N/A'
+            'director': director,
+            'poster_path': movie.get('poster_path')
         })
 
     return jsonify(movie_details)
@@ -77,7 +78,15 @@ def search_path():
     def convert_path(result):
         if result is None:
             return None
-        path = [graph.movies[movie_id]['title'] for movie_id in result['path']]
+        path = []
+        for movie_id in result['path']:
+            movie_data = graph.movies[movie_id]
+            path.append({
+                'id': movie_id,
+                'title': movie_data['title'],
+                'year': movie_data['year'],
+                'poster_path': movie_data.get('poster_path')
+            })
         connections = result['connections']
         return {'path': path, 'connections': connections}
 
