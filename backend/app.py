@@ -1,8 +1,11 @@
+# app.py
+
 from flask import Flask, request, jsonify
 import requests
 import heapq
 import logging
 import time
+from functools import lru_cache
 
 app = Flask(__name__)
 
@@ -12,6 +15,11 @@ logger = logging.getLogger(__name__)
 
 API_KEY = '9f981a4c4394f62d994979dbb6ee0230'
 BASE_URL = 'https://api.themoviedb.org/3/'
+
+# Global variable to store the last processed movies
+# WARNING: Using a global variable is not suitable for production environments.
+# Consider using a database or caching system like Redis for production use.
+last_processed_movies = []
 
 # Existing API functions remain the same
 def get_movie_credits(movie_id):
@@ -69,9 +77,6 @@ def get_commonalities(current_movie_id, goal_movie_id):
 
     return 3 * common_cast + 2 * common_crew + common_genres
 
-
-from functools import lru_cache
-
 # Caching API calls to improve performance
 @lru_cache(maxsize=10000)
 def get_movie_details_cached(movie_id):
@@ -84,7 +89,6 @@ def get_movie_credits_cached(movie_id):
 @lru_cache(maxsize=10000)
 def get_person_movies_cached(person_id):
     return get_person_movies(person_id)
-
 
 def heuristic(current_movie_id, goal_movie_id):
     credits_current = get_movie_credits_cached(current_movie_id)
@@ -101,38 +105,32 @@ def heuristic(current_movie_id, goal_movie_id):
 
     return 1  # Minimal heuristic value
 
-
-def dijkstra_tmdb(start_movie_title, end_movie_title):
+def dijkstra_tmdb_by_id(start_movie_id, end_movie_id):
+    global last_processed_movies
     start_time = time.perf_counter()
 
-    # Search for start and end movies
-    start_movie_list = search_movie_list(start_movie_title, limit=1)
-    end_movie_list = search_movie_list(end_movie_title, limit=1)
-
-    start_movie = start_movie_list[0] if start_movie_list else None
-    end_movie = end_movie_list[0] if end_movie_list else None
+    # Fetch movie details directly using movie IDs
+    start_movie = get_movie_details_cached(start_movie_id)
+    end_movie = get_movie_details_cached(end_movie_id)
 
     if not start_movie or not end_movie:
         logger.error("Start or end movie not found.")
         return None, None
 
-    start_id = int(start_movie['id'])
-    end_id = int(end_movie['id'])
-
-    logger.info(f"Starting Bidirectional Dijkstra's algorithm from '{start_movie['title']}' (ID: {start_id}) to '{end_movie['title']}' (ID: {end_id})")
+    logger.info(f"Starting Dijkstra's algorithm from '{start_movie['title']}' (ID: {start_movie_id}) to '{end_movie['title']}' (ID: {end_movie_id})")
 
     # Initialize forward search structures
-    forward_heap = [(0, start_id)]
-    forward_visited = {start_id: 0}
+    forward_heap = [(0, start_movie_id)]
+    forward_visited = {start_movie_id: 0}
     forward_predecessors = {}
 
     # Initialize backward search structures
-    backward_heap = [(0, end_id)]
-    backward_visited = {end_id: 0}
+    backward_heap = [(0, end_movie_id)]
+    backward_visited = {end_movie_id: 0}
     backward_predecessors = {}
 
     # To keep track of all processed movies
-    processed_movies = set([start_id, end_id])
+    processed_movies = set([start_movie_id, end_movie_id])
 
     # Variable to store the meeting point
     meeting_movie = None
@@ -142,7 +140,10 @@ def dijkstra_tmdb(start_movie_title, end_movie_title):
         # Expand forward search
         if forward_heap:
             forward_cost, forward_current = heapq.heappop(forward_heap)
-            logger.info(f"Forward Exploring movie: '{get_movie_details_cached(forward_current)['title']}' (ID: {forward_current}) with cost {forward_cost}")
+            forward_movie_details = get_movie_details_cached(forward_current)
+            if not forward_movie_details:
+                continue
+            logger.info(f"Forward Exploring movie: '{forward_movie_details['title']}' (ID: {forward_current}) with cost {forward_cost}")
 
             credits = get_movie_credits_cached(forward_current)
             if credits:
@@ -185,7 +186,10 @@ def dijkstra_tmdb(start_movie_title, end_movie_title):
         # Expand backward search
         if backward_heap:
             backward_cost, backward_current = heapq.heappop(backward_heap)
-            logger.info(f"Backward Exploring movie: '{get_movie_details_cached(backward_current)['title']}' (ID: {backward_current}) with cost {backward_cost}")
+            backward_movie_details = get_movie_details_cached(backward_current)
+            if not backward_movie_details:
+                continue
+            logger.info(f"Backward Exploring movie: '{backward_movie_details['title']}' (ID: {backward_current}) with cost {backward_cost}")
 
             credits = get_movie_credits_cached(backward_current)
             if credits:
@@ -230,17 +234,17 @@ def dijkstra_tmdb(start_movie_title, end_movie_title):
             # Reconstruct the path
             path_forward = []
             current = meeting_movie
-            while current != start_id:
+            while current != start_movie_id:
                 path_forward.append(current)
                 current = forward_predecessors.get(current)
                 if current is None:
                     break
-            path_forward.append(start_id)
+            path_forward.append(start_movie_id)
             path_forward.reverse()
 
             path_backward = []
             current = meeting_movie
-            while current != end_id:
+            while current != end_movie_id:
                 current = backward_predecessors.get(current)
                 if current is None:
                     break
@@ -249,41 +253,44 @@ def dijkstra_tmdb(start_movie_title, end_movie_title):
             full_path = path_forward + path_backward
 
             end_time = time.perf_counter()
-            logger.info(f"Bidirectional Dijkstra's execution time: {end_time - start_time:.2f} seconds")
-            logger.info(f"Bidirectional Dijkstra's Path found! Total movies in path: {len(full_path)}")
+            logger.info(f"Dijkstra's execution time: {end_time - start_time:.2f} seconds")
+            logger.info(f"Dijkstra's Path found! Total movies in path: {len(full_path)}")
             logger.info(f"Total unique movies explored: {len(processed_movies)}")
+
+            # Store the processed movies globally
+            last_processed_movies = list(processed_movies)
+
             return full_path, list(processed_movies)
 
     logger.info("No path found")
     logger.info(f"Total unique movies explored: {len(processed_movies)}")
+    last_processed_movies = list(processed_movies)
     return None, list(processed_movies)
 
-def bidirectional_bfs_tmdb(start_movie_title, end_movie_title):
+
+def bidirectional_bfs_tmdb_by_id(start_movie_id, end_movie_id):
+    global last_processed_movies
     start_time = time.perf_counter()
 
-    # Search for start and end movies
-    start_movie_list = search_movie_list(start_movie_title, limit=1)
-    end_movie_list = search_movie_list(end_movie_title, limit=1)
-
-    start_movie = start_movie_list[0] if start_movie_list else None
-    end_movie = end_movie_list[0] if end_movie_list else None
+    start_movie = get_movie_details_cached(start_movie_id)
+    end_movie = get_movie_details_cached(end_movie_id)
 
     if not start_movie or not end_movie:
         logger.error("Start or end movie not found.")
         return None, None
 
-    start_id = int(start_movie['id'])
-    end_id = int(end_movie['id'])
-
-    logger.info(f"Starting Bidirectional BFS from '{start_movie['title']}' (ID: {start_id}) to '{end_movie['title']}' (ID: {end_id})")
+    logger.info(f"Starting Bidirectional BFS from '{start_movie['title']}' (ID: {start_movie_id}) to '{end_movie['title']}' (ID: {end_movie_id})")
 
     # Initialize forward search structures
-    forward_queue = [start_id]
-    forward_visited = {start_id: None}
+    forward_queue = [start_movie_id]
+    forward_visited = {start_movie_id: None}
 
     # Initialize backward search structures
-    backward_queue = [end_id]
-    backward_visited = {end_id: None}
+    backward_queue = [end_movie_id]
+    backward_visited = {end_movie_id: None}
+
+    # To keep track of all processed movies
+    processed_movies = set([start_movie_id, end_movie_id])
 
     # Variable to store the meeting point
     meeting_movie = None
@@ -291,7 +298,10 @@ def bidirectional_bfs_tmdb(start_movie_title, end_movie_title):
     while forward_queue and backward_queue:
         # Expand forward search
         current_forward = forward_queue.pop(0)
-        logger.info(f"Forward Exploring movie: '{get_movie_details_cached(current_forward)['title']}' (ID: {current_forward})")
+        forward_movie_details = get_movie_details_cached(current_forward)
+        if not forward_movie_details:
+            continue
+        logger.info(f"Forward Exploring movie: '{forward_movie_details['title']}' (ID: {current_forward})")
 
         credits = get_movie_credits_cached(current_forward)
         if credits:
@@ -312,6 +322,7 @@ def bidirectional_bfs_tmdb(start_movie_title, end_movie_title):
 
                 for movie in sorted_movies:
                     next_movie_id = int(movie['id'])
+                    processed_movies.add(next_movie_id)  # Add to processed_movies set
 
                     if next_movie_id in forward_visited:
                         continue
@@ -332,7 +343,10 @@ def bidirectional_bfs_tmdb(start_movie_title, end_movie_title):
 
         # Expand backward search
         current_backward = backward_queue.pop(0)
-        logger.info(f"Backward Exploring movie: '{get_movie_details_cached(current_backward)['title']}' (ID: {current_backward})")
+        backward_movie_details = get_movie_details_cached(current_backward)
+        if not backward_movie_details:
+            continue
+        logger.info(f"Backward Exploring movie: '{backward_movie_details['title']}' (ID: {current_backward})")
 
         credits = get_movie_credits_cached(current_backward)
         if credits:
@@ -353,6 +367,7 @@ def bidirectional_bfs_tmdb(start_movie_title, end_movie_title):
 
                 for movie in sorted_movies:
                     next_movie_id = int(movie['id'])
+                    processed_movies.add(next_movie_id)  # Add to processed_movies set
 
                     if next_movie_id in backward_visited:
                         continue
@@ -373,29 +388,39 @@ def bidirectional_bfs_tmdb(start_movie_title, end_movie_title):
 
     if meeting_movie is None:
         logger.info("No path found")
-        return None, None
+        logger.info(f"Total unique movies explored: {len(processed_movies)}")
+        last_processed_movies = list(processed_movies)
+        return None, list(processed_movies)
 
     # Reconstruct the path
     path_forward = []
     current = meeting_movie
-    while current is not None:
+    while current != start_movie_id:
         path_forward.append(current)
-        current = forward_visited[current]
+        current = forward_visited.get(current)
+        if current is None:
+            break
+    path_forward.append(start_movie_id)
+    path_forward.reverse()
 
     path_backward = []
-    current = backward_visited[meeting_movie]
-    while current is not None:
+    current = meeting_movie
+    while current != end_movie_id:
+        current = backward_visited.get(current)
+        if current is None:
+            break
         path_backward.append(current)
-        current = backward_visited[current]
 
-    full_path = path_forward[::-1] + path_backward
+    full_path = path_forward + path_backward
 
     end_time = time.perf_counter()
     logger.info(f"Bidirectional BFS execution time: {end_time - start_time:.2f} seconds")
     logger.info(f"Bidirectional BFS Path found! Total movies in path: {len(full_path)}")
 
-    return full_path, list(set(forward_visited.keys()).union(set(backward_visited.keys())))
+    # Store the processed movies globally
+    last_processed_movies = list(processed_movies)
 
+    return full_path, list(processed_movies)
 
 def format_path(path):
     formatted_path = {
@@ -403,7 +428,7 @@ def format_path(path):
         'connections': []
     }
     for i, movie_id in enumerate(path):
-        movie_details = get_movie_details(movie_id)
+        movie_details = get_movie_details_cached(movie_id)
         if movie_details:
             formatted_path['movies'].append({
                 'id': movie_id,
@@ -412,8 +437,8 @@ def format_path(path):
                 'poster_path': movie_details.get('poster_path')
             })
         if i < len(path) - 1:
-            movie1_credits = get_movie_credits(path[i])
-            movie2_credits = get_movie_credits(path[i + 1])
+            movie1_credits = get_movie_credits_cached(path[i])
+            movie2_credits = get_movie_credits_cached(path[i + 1])
             common_people = set(p['id'] for p in movie1_credits.get('cast', []) + movie1_credits.get('crew', [])) & \
                             set(p['id'] for p in movie2_credits.get('cast', []) + movie2_credits.get('crew', []))
             if common_people:
@@ -428,32 +453,64 @@ def format_path(path):
                 formatted_path['connections'].append('Unknown')
     return formatted_path
 
-@app.route('/search_path', methods=['GET'])
-def search_path():
-    start_movie_title = request.args.get('start')
-    end_movie_title = request.args.get('end')
+@app.route('/find_path', methods=['GET'])
+def find_path():
+    """
+    Endpoint to find the path between two movies using their TMDB IDs.
+    Returns the path immediately once found.
+    """
+    start_movie_id = request.args.get('start_id')
+    end_movie_id = request.args.get('end_id')
     algorithm = request.args.get('algorithm', 'bfs').lower()  # Default to BFS
 
-    print(f"Received request to find path from '{start_movie_title}' to '{end_movie_title}' using {algorithm}")
+    logger.info(f"Received request to find path from ID '{start_movie_id}' to ID '{end_movie_id}' using {algorithm}")
+
+    if not start_movie_id or not end_movie_id:
+        return jsonify({'error': 'Please provide both start_id and end_id'}), 400
+
+    # Validate that start_movie_id and end_movie_id are integers
+    try:
+        start_movie_id = int(start_movie_id)
+        end_movie_id = int(end_movie_id)
+    except ValueError:
+        return jsonify({'error': 'Invalid movie IDs provided'}), 400
 
     if algorithm == 'bfs':
-        path, processed_movies = bidirectional_bfs_tmdb(start_movie_title, end_movie_title)
+        path, processed_movies = bidirectional_bfs_tmdb_by_id(start_movie_id, end_movie_id)
     elif algorithm == 'dijkstra':
-        path, processed_movies = dijkstra_tmdb(start_movie_title, end_movie_title)
+        path, processed_movies = dijkstra_tmdb_by_id(start_movie_id, end_movie_id)
     else:
         return jsonify({'error': 'Invalid algorithm specified'}), 400
 
     if path is None:
-        print("No path found between the movies")
+        logger.info("No path found between the movies")
         return jsonify({'error': 'No path found between the movies'}), 404
 
     formatted_path = format_path(path)
-    print(f"Path found and formatted. Number of steps: {len(formatted_path['movies']) + len(formatted_path['connections'])}")
+    logger.info(f"Path found and formatted. Number of steps: {len(formatted_path['movies']) + len(formatted_path['connections'])}")
 
-    # Format processed movies
+    return jsonify({
+        'path': formatted_path
+    })
+
+
+@app.route('/get_processed_movies', methods=['GET'])
+def get_processed_movies():
+    global last_processed_movies
+
+    if not last_processed_movies:
+        logger.error("No processed movies found. Please find a path first.")
+        return jsonify({'error': 'No processed movies found. Please find a path first.'}), 400
+
+    offset = int(request.args.get('offset', 0))
+    limit = int(request.args.get('limit', 250))  # Changed default to 100
+
+    total_count = len(last_processed_movies)
+    paginated_movies = last_processed_movies[offset:offset+limit]
+
     formatted_processed = []
-    for movie_id in processed_movies:
-        details = get_movie_details(movie_id)
+    for movie_id in paginated_movies:
+        details = get_movie_details_cached(movie_id)
         if details:
             formatted_processed.append({
                 'id': movie_id,
@@ -462,25 +519,26 @@ def search_path():
                 'poster_path': details.get('poster_path')
             })
 
+    logger.info(f"Returning {len(formatted_processed)} processed movies. Offset: {offset}, Limit: {limit}, Total: {total_count}")
     return jsonify({
-        f'{algorithm}_path': formatted_path,
-        'processed_movies': formatted_processed
+        'processed_movies': formatted_processed,
+        'total_count': total_count
     })
-
-
-
 @app.route('/search_movie', methods=['GET'])
 def search_movie_route():
+    """
+    Endpoint to search for movies by name.
+    """
     movie_name = request.args.get('movie_name')
-    print(f"Searching for movie: '{movie_name}'")
+    logger.info(f"Searching for movie: '{movie_name}'")
     movies = search_movie_list(movie_name)
     if movies:
-        print(f"Found {len(movies)} movies matching '{movie_name}'")
+        logger.info(f"Found {len(movies)} movies matching '{movie_name}'")
         return jsonify({
             'results': movies
         })
     else:
-        print(f"Movie not found: '{movie_name}'")
+        logger.info(f"Movie not found: '{movie_name}'")
         return jsonify({'error': 'Movie not found'}), 404
 
 if __name__ == '__main__':

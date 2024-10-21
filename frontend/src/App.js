@@ -1,5 +1,3 @@
-// App.js
-
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import './styles.css';
@@ -75,6 +73,8 @@ function App() {
   const [startMovieId, setStartMovieId] = useState(null);
   const [endMovieId, setEndMovieId] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [loadedMovies, setLoadedMovies] = useState([]);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
 
   const fetchMovieSuggestions = async (query, setSuggestions) => {
     if (query.length > 2) {
@@ -90,53 +90,92 @@ function App() {
     }
   };
 
-  const handleSelectSuggestion = (movie, setMovie, setSuggestions) => {
-    setMovie(movie.title);
-    setSuggestions([]);
-  };
+  const handleSelectSuggestion = (movie, setMovie, setSuggestions, setMovieId) => {
+  setMovie(movie.title);
+  setMovieId(movie.id); // Set the selected movie ID
+  setSuggestions([]);
+};
+
 
   const searchMovies = async () => {
-    if (!startMovie || !endMovie) {
-      setError('Please select both start and end movies.');
-      return;
-    }
+  if (!startMovie || !endMovie) {
+    setError('Please select both start and end movies.');
+    return;
+  }
 
-    setIsProcessing(true);
-    setProcessedMovies([]);
-    setTopProcessedMovies([]);
-    setPath(null);
-    setError(null);
+  if (!startMovieId || !endMovieId) {
+    setError('Invalid movie selections. Please try again.');
+    return;
+  }
 
-    try {
-      const res = await axios.get(
-        `/search_path?start=${encodeURIComponent(startMovie)}&end=${encodeURIComponent(endMovie)}&algorithm=${algorithm}`
+  setIsProcessing(true);
+  setProcessedMovies([]);
+  setLoadedMovies([]);
+  setTopProcessedMovies([]);
+  setPath(null);
+  setError(null);
+
+  try {
+      // Step 1: Fetch the path using movie IDs
+      const pathResponse = await axios.get(
+        `/find_path?start_id=${startMovieId}&end_id=${endMovieId}&algorithm=${algorithm}`
       );
-      const algorithmPath = res.data[`${algorithm}_path`];
-      const allProcessedMovies = res.data.processed_movies;
+
+      const algorithmPath = pathResponse.data.path;
 
       if (algorithmPath) {
         setPath(algorithmPath);
-        setProcessedMovies(allProcessedMovies);
         setStartMovieId(algorithmPath.movies[0].id);
         setEndMovieId(algorithmPath.movies[algorithmPath.movies.length - 1].id);
 
-
-        const sortedMovies = [...allProcessedMovies]
-            .sort((a, b) => b.popularity - a.popularity)
-            .map(movie => ({
-              ...movie,
-              connection: movie.connection || {type: 'Unknown', name: 'Unknown'}
-            }));
-
-        // Take the top 100 movies
-        setTopProcessedMovies(sortedMovies.slice(0, 15));
-
+        // Step 2: Start fetching processed movies progressively
+        fetchProcessedMoviesProgressively();
       }
 
     } catch (err) {
       console.error('Error finding path:', err);
       setError('Unable to find a path between the selected movies.');
-    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+const fetchProcessedMoviesProgressively = async () => {
+    try {
+      let offset = 0;
+      const batchSize = 250;
+      const maxMovies = 500; // Set this to the maximum number of movies you want to load
+
+      const fetchBatch = async () => {
+        setIsLoadingMore(true);
+        const res = await axios.get(`/get_processed_movies?offset=${offset}&limit=${batchSize}`);
+        const newMovies = res.data.processed_movies;
+        const totalCount = res.data.total_count; // New field from backend
+
+        if (newMovies && newMovies.length > 0) {
+          setLoadedMovies(prevMovies => [...prevMovies, ...newMovies]);
+          setTopProcessedMovies(prevMovies => {
+            const updatedMovies = [...prevMovies, ...newMovies];
+            return updatedMovies.slice(0, 250);
+          });
+          offset += newMovies.length;
+          setTotalMoviesCount(totalCount);
+
+          if (offset < Math.min(totalCount, maxMovies)) {
+            setTimeout(fetchBatch, 100); // Fetch next batch after a short delay
+          } else {
+            setIsLoadingMore(false);
+            setIsProcessing(false);
+          }
+        } else {
+          setIsLoadingMore(false);
+          setIsProcessing(false);
+        }
+      };
+
+      await fetchBatch();
+    } catch (err) {
+      console.error('Error fetching processed movies:', err);
+      setIsLoadingMore(false);
       setIsProcessing(false);
     }
   };
@@ -158,14 +197,14 @@ function App() {
         {startMovieSuggestions.length > 0 && (
           <ul className="suggestions">
             {startMovieSuggestions.map((movie) => (
-              <li
-                key={movie.id}
-                onClick={() =>
-                  handleSelectSuggestion(movie, setStartMovie, setStartMovieSuggestions)
-                }
-              >
-                <strong>{movie.title}</strong> ({movie.year}) - Directed by {movie.director || 'N/A'}
-              </li>
+                <li
+                    key={movie.id}
+                    onClick={() =>
+                        handleSelectSuggestion(movie, setStartMovie, setStartMovieSuggestions, setStartMovieId)
+                    }
+                >
+                  <strong>{movie.title}</strong> ({movie.year}) - Directed by {movie.director || 'N/A'}
+                </li>
             ))}
           </ul>
         )}
@@ -173,23 +212,25 @@ function App() {
 
       <div className="autocomplete">
         <input
-          type="text"
-          value={endMovie}
-          onChange={(e) => {
-            setEndMovie(e.target.value);
-            fetchMovieSuggestions(e.target.value, setEndMovieSuggestions);
+            type="text"
+            value={endMovie}
+            onChange={(e) => {
+              setEndMovie(e.target.value);
+              fetchMovieSuggestions(e.target.value, setEndMovieSuggestions);
           }}
           placeholder="End Movie"
         />
         {endMovieSuggestions.length > 0 && (
           <ul className="suggestions">
             {endMovieSuggestions.map((movie) => (
-              <li
-                key={movie.id}
-                onClick={() => handleSelectSuggestion(movie, setEndMovie, setEndMovieSuggestions)}
-              >
-                <strong>{movie.title}</strong> ({movie.year}) - Directed by {movie.director || 'N/A'}
-              </li>
+                <li
+                    key={movie.id}
+                    onClick={() =>
+                        handleSelectSuggestion(movie, setEndMovie, setEndMovieSuggestions, setEndMovieId)
+                    }
+                >
+                  <strong>{movie.title}</strong> ({movie.year}) - Directed by {movie.director || 'N/A'}
+                </li>
             ))}
           </ul>
         )}
@@ -208,17 +249,6 @@ function App() {
       </button>
 
       {error && <p className="error">{error}</p>}
-
-      {topProcessedMovies.length > 0 && (
-        <>
-          <h2>Top 100 Processed Movies:</h2>
-          <MovieCardDeck
-            movies={topProcessedMovies}
-            startMovieId={startMovieId}
-            endMovieId={endMovieId}
-          />
-        </>
-      )}
 
       {path && (
         <div className="path-result">
@@ -244,9 +274,43 @@ function App() {
           </ul>
         </div>
       )}
+
+      {isProcessing && !processedMovies.length && (
+        <div className="loading">
+          <p>Processing movies... Please wait.</p>
+          {/* Add a spinner or loader here if desired */}
+        </div>
+      )}
+
+      {loadedMovies.length > 0 && (
+        <>
+          <h2>Processed Movies:</h2>
+          <MovieCardDeck
+            movies={topProcessedMovies}
+            startMovieId={startMovieId}
+            endMovieId={endMovieId}
+          />
+          {isProcessing && (
+            <p>Loading more movies...</p>
+          )}
+        </>
+      )}
+
+      {/* Example: Similar Movie List */}
+      {path && !processedMovies.length && (
+        <div className="similar-movies">
+          <h2>Similar Movies You Might Like:</h2>
+          {/* Implement a similar movie list based on the path or other criteria */}
+          <ul>
+            {/* This can be dynamic based on your logic */}
+            <li>Similar Movie 1</li>
+            <li>Similar Movie 2</li>
+            <li>Similar Movie 3</li>
+          </ul>
+        </div>
+      )}
     </div>
   );
 }
 
 export default App;
-
