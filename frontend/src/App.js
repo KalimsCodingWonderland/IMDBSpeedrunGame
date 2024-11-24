@@ -3,6 +3,8 @@ import axios from 'axios';
 import './styles.css';
 
 // Updated MovieCardDeck Component
+// In your MovieCardDeck component (inside App.js or a separate file)
+
 function MovieCardDeck({ movies, startMovieId, endMovieId }) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const totalMovies = movies.length;
@@ -25,7 +27,7 @@ function MovieCardDeck({ movies, startMovieId, endMovieId }) {
   return (
     <div className="movie-card-deck">
       <button className="nav-arrow left-arrow" onClick={handlePrev}>
-        &#9664;
+        &#10094;
       </button>
       <div className="movie-card-container">
         {movies.map((movie, index) => (
@@ -33,7 +35,13 @@ function MovieCardDeck({ movies, startMovieId, endMovieId }) {
             key={movie.id}
             className={`movie-card ${
               index === currentIndex ? 'active' : 'inactive'
-            } ${movie.id === startMovieId ? 'start-movie' : movie.id === endMovieId ? 'end-movie' : ''}`}
+            } ${
+              movie.id === startMovieId
+                ? 'start-movie'
+                : movie.id === endMovieId
+                ? 'end-movie'
+                : ''
+            }`}
             style={{
               backgroundImage: movie.poster_path
                 ? `url(https://image.tmdb.org/t/p/w500${movie.poster_path})`
@@ -46,7 +54,8 @@ function MovieCardDeck({ movies, startMovieId, endMovieId }) {
               <p>{movie.year}</p>
               {movie.connection && (
                 <p className="connection-info">
-                  Connected via: {movie.connection.type} - {movie.connection.name}
+                  Connected via: {movie.connection.type} -{' '}
+                  {movie.connection.name}
                 </p>
               )}
             </div>
@@ -54,7 +63,7 @@ function MovieCardDeck({ movies, startMovieId, endMovieId }) {
         ))}
       </div>
       <button className="nav-arrow right-arrow" onClick={handleNext}>
-        &#9654;
+        &#10095;
       </button>
     </div>
   );
@@ -182,8 +191,9 @@ const fetchProcessedMoviesProgressively = async () => {
 
   return (
     <div className="container">
-      <h1>Movie Path Finder</h1>
+      <h1>🎬 Movie Path Finder</h1>
 
+      {/* Start Movie Input */}
       <div className="autocomplete">
         <input
           type="text"
@@ -197,76 +207,100 @@ const fetchProcessedMoviesProgressively = async () => {
         {startMovieSuggestions.length > 0 && (
           <ul className="suggestions">
             {startMovieSuggestions.map((movie) => (
-                <li
-                    key={movie.id}
-                    onClick={() =>
-                        handleSelectSuggestion(movie, setStartMovie, setStartMovieSuggestions, setStartMovieId)
-                    }
-                >
-                  <strong>{movie.title}</strong> ({movie.year}) - Directed by {movie.director || 'N/A'}
-                </li>
+              <li
+                key={movie.id}
+                onClick={() =>
+                  handleSelectSuggestion(
+                    movie,
+                    setStartMovie,
+                    setStartMovieSuggestions,
+                    setStartMovieId
+                  )
+                }
+              >
+                <strong>{movie.title}</strong> ({movie.year}) - Directed by{' '}
+                {movie.director || 'N/A'}
+              </li>
             ))}
           </ul>
         )}
       </div>
 
+      {/* End Movie Input */}
       <div className="autocomplete">
         <input
-            type="text"
-            value={endMovie}
-            onChange={(e) => {
-              setEndMovie(e.target.value);
-              fetchMovieSuggestions(e.target.value, setEndMovieSuggestions);
+          type="text"
+          value={endMovie}
+          onChange={(e) => {
+            setEndMovie(e.target.value);
+            fetchMovieSuggestions(e.target.value, setEndMovieSuggestions);
           }}
           placeholder="End Movie"
         />
         {endMovieSuggestions.length > 0 && (
           <ul className="suggestions">
             {endMovieSuggestions.map((movie) => (
-                <li
-                    key={movie.id}
-                    onClick={() =>
-                        handleSelectSuggestion(movie, setEndMovie, setEndMovieSuggestions, setEndMovieId)
-                    }
-                >
-                  <strong>{movie.title}</strong> ({movie.year}) - Directed by {movie.director || 'N/A'}
-                </li>
+              <li
+                key={movie.id}
+                onClick={() =>
+                  handleSelectSuggestion(
+                    movie,
+                    setEndMovie,
+                    setEndMovieSuggestions,
+                    setEndMovieId
+                  )
+                }
+              >
+                <strong>{movie.title}</strong> ({movie.year}) - Directed by{' '}
+                {movie.director || 'N/A'}
+              </li>
             ))}
           </ul>
         )}
       </div>
 
+      {/* Algorithm Selection */}
       <div className="algorithm-selection">
-        <label>Select Algorithm: </label>
+        <label>Select Algorithm:</label>
         <select value={algorithm} onChange={(e) => setAlgorithm(e.target.value)}>
           <option value="dijkstra">Dijkstra's Algorithm</option>
           <option value="bfs">Bidirectional BFS</option>
         </select>
       </div>
 
+      {/* Search Button */}
       <button onClick={searchMovies} disabled={isProcessing}>
         {isProcessing ? 'Searching...' : 'Find Path'}
       </button>
 
+      {/* Error Message */}
       {error && <p className="error">{error}</p>}
 
+      {/* Loading Indicator */}
+      {isProcessing && (
+        <div className="loading">
+          <p>Processing movies... Please wait.</p>
+        </div>
+      )}
+
+      {/* Display Path */}
       {path && (
         <div className="path-result">
           <h2>
             {algorithm === 'dijkstra'
               ? "Dijkstra's"
-              : 'Breadth First Search'}{' '}
+              : 'Bidirectional BFS'}{' '}
             Path:
           </h2>
           <ul>
             {path.movies.map((movie, index) => (
               <li key={movie.id}>
                 <p>
-                  {movie.title} ({movie.year})
+                  <strong>{movie.title}</strong> ({movie.year})
                 </p>
                 {index < path.connections.length && (
                   <p>
-                    Connected via: {path.connections[index]}
+                    Connected via: <em>{path.connections[index]}</em>
                   </p>
                 )}
               </li>
@@ -275,13 +309,7 @@ const fetchProcessedMoviesProgressively = async () => {
         </div>
       )}
 
-      {isProcessing && !processedMovies.length && (
-        <div className="loading">
-          <p>Processing movies... Please wait.</p>
-          {/* Add a spinner or loader here if desired */}
-        </div>
-      )}
-
+      {/* Processed Movies */}
       {loadedMovies.length > 0 && (
         <>
           <h2>Processed Movies:</h2>
@@ -290,22 +318,16 @@ const fetchProcessedMoviesProgressively = async () => {
             startMovieId={startMovieId}
             endMovieId={endMovieId}
           />
-          {isProcessing && (
-            <p>Loading more movies...</p>
-          )}
+          {isLoadingMore && <p className="loading-more">Loading more movies...</p>}
         </>
       )}
 
-      {/* Example: Similar Movie List */}
+      {/* Similar Movies Section */}
       {path && !processedMovies.length && (
         <div className="similar-movies">
           <h2>Similar Movies You Might Like:</h2>
-          {/* Implement a similar movie list based on the path or other criteria */}
           <ul>
-            {/* This can be dynamic based on your logic */}
-            <li>Similar Movie 1</li>
-            <li>Similar Movie 2</li>
-            <li>Similar Movie 3</li>
+            {/* Implement similar movies logic */}
           </ul>
         </div>
       )}
