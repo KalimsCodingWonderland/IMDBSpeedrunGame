@@ -1,75 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import './styles.css';
-
-// Updated MovieCardDeck Component
-// In your MovieCardDeck component (inside App.js or a separate file)
-
-function MovieCardDeck({ movies, startMovieId, endMovieId }) {
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const totalMovies = movies.length;
-
-  const handleNext = () => {
-    setCurrentIndex((prevIndex) => (prevIndex + 1) % totalMovies);
-  };
-
-  const handlePrev = () => {
-    setCurrentIndex((prevIndex) => (prevIndex - 1 + totalMovies) % totalMovies);
-  };
-
-  const handleCardClick = (movieId) => {
-    const tmdbUrl = `https://www.themoviedb.org/movie/${movieId}`;
-    window.open(tmdbUrl, '_blank');
-  };
-
-  if (movies.length === 0) return null;
-
-  return (
-    <div className="movie-card-deck">
-      <button className="nav-arrow left-arrow" onClick={handlePrev}>
-        &#10094;
-      </button>
-      <div className="movie-card-container">
-        {movies.map((movie, index) => (
-          <div
-            key={movie.id}
-            className={`movie-card ${
-              index === currentIndex ? 'active' : 'inactive'
-            } ${
-              movie.id === startMovieId
-                ? 'start-movie'
-                : movie.id === endMovieId
-                ? 'end-movie'
-                : ''
-            }`}
-            style={{
-              backgroundImage: movie.poster_path
-                ? `url(https://image.tmdb.org/t/p/w500${movie.poster_path})`
-                : 'url(/default-poster.jpg)',
-            }}
-            onClick={() => handleCardClick(movie.id)}
-          >
-            <div className="movie-info">
-              <h3>{movie.title}</h3>
-              <p>{movie.year}</p>
-              {movie.connection && (
-                <p className="connection-info">
-                  Connected via: {movie.connection.type} -{' '}
-                  {movie.connection.name}
-                </p>
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
-      <button className="nav-arrow right-arrow" onClick={handleNext}>
-        &#10095;
-      </button>
-    </div>
-  );
-}
+import MovieCardDeck from './MovieCardDeck';
+import GraphPage from './GraphPage'; // New component for the graph page
 
 function App() {
+  const [currentPage, setCurrentPage] = useState('home'); // State for navigation
   const [startMovie, setStartMovie] = useState('');
   const [endMovie, setEndMovie] = useState('');
   const [algorithm, setAlgorithm] = useState('dijkstra');
@@ -100,47 +36,41 @@ function App() {
   };
 
   const handleSelectSuggestion = (movie, setMovie, setSuggestions, setMovieId) => {
-  setMovie(movie.title);
-  setMovieId(movie.id); // Set the selected movie ID
-  setSuggestions([]);
-};
-
+    setMovie(movie.title);
+    setMovieId(movie.id);
+    setSuggestions([]);
+  };
 
   const searchMovies = async () => {
-  if (!startMovie || !endMovie) {
-    setError('Please select both start and end movies.');
-    return;
-  }
+    if (!startMovie || !endMovie) {
+      setError('Please select both start and end movies.');
+      return;
+    }
 
-  if (!startMovieId || !endMovieId) {
-    setError('Invalid movie selections. Please try again.');
-    return;
-  }
+    if (!startMovieId || !endMovieId) {
+      setError('Invalid movie selections. Please try again.');
+      return;
+    }
 
-  setIsProcessing(true);
-  setProcessedMovies([]);
-  setLoadedMovies([]);
-  setTopProcessedMovies([]);
-  setPath(null);
-  setError(null);
+    setIsProcessing(true);
+    setProcessedMovies([]);
+    setLoadedMovies([]);
+    setTopProcessedMovies([]);
+    setPath(null);
+    setError(null);
 
-  try {
-      // Step 1: Fetch the path using movie IDs
+    try {
       const pathResponse = await axios.get(
         `/find_path?start_id=${startMovieId}&end_id=${endMovieId}&algorithm=${algorithm}`
       );
-
       const algorithmPath = pathResponse.data.path;
 
       if (algorithmPath) {
         setPath(algorithmPath);
         setStartMovieId(algorithmPath.movies[0].id);
         setEndMovieId(algorithmPath.movies[algorithmPath.movies.length - 1].id);
-
-        // Step 2: Start fetching processed movies progressively
         fetchProcessedMoviesProgressively();
       }
-
     } catch (err) {
       console.error('Error finding path:', err);
       setError('Unable to find a path between the selected movies.');
@@ -148,29 +78,28 @@ function App() {
     }
   };
 
-const fetchProcessedMoviesProgressively = async () => {
+  const fetchProcessedMoviesProgressively = async () => {
     try {
       let offset = 0;
       const batchSize = 250;
-      const maxMovies = 500; // Set this to the maximum number of movies you want to load
+      const maxMovies = 500;
 
       const fetchBatch = async () => {
         setIsLoadingMore(true);
         const res = await axios.get(`/get_processed_movies?offset=${offset}&limit=${batchSize}`);
         const newMovies = res.data.processed_movies;
-        const totalCount = res.data.total_count; // New field from backend
+        const totalCount = res.data.total_count;
 
         if (newMovies && newMovies.length > 0) {
-          setLoadedMovies(prevMovies => [...prevMovies, ...newMovies]);
-          setTopProcessedMovies(prevMovies => {
+          setLoadedMovies((prevMovies) => [...prevMovies, ...newMovies]);
+          setTopProcessedMovies((prevMovies) => {
             const updatedMovies = [...prevMovies, ...newMovies];
             return updatedMovies.slice(0, 250);
           });
           offset += newMovies.length;
-          setTotalMoviesCount(totalCount);
 
           if (offset < Math.min(totalCount, maxMovies)) {
-            setTimeout(fetchBatch, 100); // Fetch next batch after a short delay
+            setTimeout(fetchBatch, 100);
           } else {
             setIsLoadingMore(false);
             setIsProcessing(false);
@@ -189,8 +118,8 @@ const fetchProcessedMoviesProgressively = async () => {
     }
   };
 
-  return (
-    <div className="container">
+  const renderHomePage = () => (
+    <div>
       <h1>🎬 Movie Path Finder</h1>
 
       {/* Start Movie Input */}
@@ -210,16 +139,10 @@ const fetchProcessedMoviesProgressively = async () => {
               <li
                 key={movie.id}
                 onClick={() =>
-                  handleSelectSuggestion(
-                    movie,
-                    setStartMovie,
-                    setStartMovieSuggestions,
-                    setStartMovieId
-                  )
+                  handleSelectSuggestion(movie, setStartMovie, setStartMovieSuggestions, setStartMovieId)
                 }
               >
-                <strong>{movie.title}</strong> ({movie.year}) - Directed by{' '}
-                {movie.director || 'N/A'}
+                <strong>{movie.title}</strong> ({movie.year})
               </li>
             ))}
           </ul>
@@ -243,16 +166,10 @@ const fetchProcessedMoviesProgressively = async () => {
               <li
                 key={movie.id}
                 onClick={() =>
-                  handleSelectSuggestion(
-                    movie,
-                    setEndMovie,
-                    setEndMovieSuggestions,
-                    setEndMovieId
-                  )
+                  handleSelectSuggestion(movie, setEndMovie, setEndMovieSuggestions, setEndMovieId)
                 }
               >
-                <strong>{movie.title}</strong> ({movie.year}) - Directed by{' '}
-                {movie.director || 'N/A'}
+                <strong>{movie.title}</strong> ({movie.year})
               </li>
             ))}
           </ul>
@@ -268,69 +185,46 @@ const fetchProcessedMoviesProgressively = async () => {
         </select>
       </div>
 
-      {/* Search Button */}
       <button onClick={searchMovies} disabled={isProcessing}>
         {isProcessing ? 'Searching...' : 'Find Path'}
       </button>
 
-      {/* Error Message */}
       {error && <p className="error">{error}</p>}
 
-      {/* Loading Indicator */}
-      {isProcessing && (
-        <div className="loading">
-          <p>Processing movies... Please wait.</p>
-        </div>
-      )}
+      {isProcessing && <p>Processing movies... Please wait.</p>}
 
-      {/* Display Path */}
       {path && (
-        <div className="path-result">
-          <h2>
-            {algorithm === 'dijkstra'
-              ? "Dijkstra's"
-              : 'Bidirectional BFS'}{' '}
-            Path:
-          </h2>
+        <div>
+          <h2>{algorithm === 'dijkstra' ? "Dijkstra's" : 'Bidirectional BFS'} Path:</h2>
           <ul>
             {path.movies.map((movie, index) => (
               <li key={movie.id}>
                 <p>
-                  <strong>{movie.title}</strong> ({movie.year})
+                  {movie.title} ({movie.year})
+                  {index < path.connections.length && (
+                    <span> Connected via: {path.connections[index]}</span>
+                  )}
                 </p>
-                {index < path.connections.length && (
-                  <p>
-                    Connected via: <em>{path.connections[index]}</em>
-                  </p>
-                )}
               </li>
             ))}
           </ul>
         </div>
       )}
 
-      {/* Processed Movies */}
-      {loadedMovies.length > 0 && (
+      {/* Only show after movie deck is loaded */}
+      {loadedMovies.length > 0 && !isLoadingMore && (
         <>
           <h2>Processed Movies:</h2>
-          <MovieCardDeck
-            movies={topProcessedMovies}
-            startMovieId={startMovieId}
-            endMovieId={endMovieId}
-          />
-          {isLoadingMore && <p className="loading-more">Loading more movies...</p>}
+          <MovieCardDeck movies={topProcessedMovies} startMovieId={startMovieId} endMovieId={endMovieId} />
+          <button onClick={() => setCurrentPage('graph')}>View Interactive Graph</button>
         </>
       )}
+    </div>
+  );
 
-      {/* Similar Movies Section */}
-      {path && !processedMovies.length && (
-        <div className="similar-movies">
-          <h2>Similar Movies You Might Like:</h2>
-          <ul>
-            {/* Implement similar movies logic */}
-          </ul>
-        </div>
-      )}
+  return (
+    <div className="container">
+      {currentPage === 'home' ? renderHomePage() : <GraphPage navigateHome={() => setCurrentPage('home')} />}
     </div>
   );
 }
