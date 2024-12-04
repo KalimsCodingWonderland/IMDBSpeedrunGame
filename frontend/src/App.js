@@ -19,6 +19,8 @@ function App() {
   const [endMovieId, setEndMovieId] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [executionTime, setExecutionTime] = useState(null);
+  const [lastExecutedAlgorithm, setLastExecutedAlgorithm] = useState('');
   const [error, setError] = useState(null);
 
   // Fetch movie suggestions
@@ -63,12 +65,16 @@ function App() {
 
     try {
       const res = await axios.get(`/find_path?start_id=${startMovieId}&end_id=${endMovieId}&algorithm=${algorithm}`);
+      console.log('API Response:', res.data); // Debugging
       const algorithmPath = res.data.path;
+      const timeTaken = res.data.execution_time;
 
       if (algorithmPath) {
         setPath(algorithmPath);
         setFullPath(algorithmPath.movies);
         fetchProcessedMoviesProgressively(); // Start fetching processed movies dynamically
+        setExecutionTime(timeTaken);
+        setLastExecutedAlgorithm(algorithm);
         fetchAllProcessedMovies();
       }
     } catch (err) {
@@ -222,10 +228,28 @@ function App() {
 
       {error && <p className="error">{error}</p>}
 
+      {/* Loading Indicator */}
+      {isProcessing ? (
+        <div className="loading">
+          <p>Processing movies... Please wait.</p>
+        </div>
+      ) : (
+        executionTime && (
+          <div className="loading">
+            <p>
+              {lastExecutedAlgorithm === 'dijkstra'
+                ? "Dijkstra's Execution Time"
+                : 'Bidirectional BFS Execution Time'}
+              : {executionTime.toFixed(2)} seconds
+            </p>
+          </div>
+        )
+      )}
+
       {/* Display Path */}
       {path && (
         <div>
-          <h2>{algorithm === 'dijkstra' ? "Dijkstra's" : 'Bidirectional BFS'} Path:</h2>
+          <h2>{lastExecutedAlgorithm === 'dijkstra' ? "Dijkstra's" : 'Bidirectional BFS'} Path:</h2>
           <ul>
             {path.movies.map((movie, index) => (
               <li key={movie.id}>
