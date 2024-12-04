@@ -85,6 +85,7 @@ function App() {
   const [loadedMovies, setLoadedMovies] = useState([]);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [executionTime, setExecutionTime] = useState(null);
+  const [lastExecutedAlgorithm, setLastExecutedAlgorithm] = useState('');
 
   const fetchMovieSuggestions = async (query, setSuggestions) => {
     if (query.length > 2) {
@@ -142,6 +143,7 @@ function App() {
 
         // Step 2: Start fetching processed movies progressively
         setExecutionTime(timeTaken);
+        setLastExecutedAlgorithm(algorithm);
         fetchProcessedMoviesProgressively();
       }
 
@@ -288,7 +290,12 @@ const fetchProcessedMoviesProgressively = async () => {
       ) : (
         executionTime && (
           <div className="loading">
-            <p>Dijkstra's Execution Time: {executionTime.toFixed(2)} seconds</p>
+            <p>
+              {lastExecutedAlgorithm === 'dijkstra'
+                  ? "Dijkstra's Execution Time"
+                  : 'Bidirectional BFS Execution Time'}
+              : {executionTime.toFixed(2)} seconds
+            </p>
           </div>
         )
       )}
@@ -297,7 +304,7 @@ const fetchProcessedMoviesProgressively = async () => {
       {path && (
         <div className="path-result">
           <h2>
-            {algorithm === 'dijkstra'
+            {lastExecutedAlgorithm === 'dijkstra'
               ? "Dijkstra's"
               : 'Bidirectional BFS'}{' '}
             Path:
