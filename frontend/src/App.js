@@ -7,15 +7,26 @@ import './styles.css';
 
 function MovieCardDeck({ movies, startMovieId, endMovieId }) {
   const [currentIndex, setCurrentIndex] = useState(0);
+  //const [direction, setDirection] = useState(null);
   const totalMovies = movies.length;
 
   const handleNext = () => {
+    //setDirection('right');
     setCurrentIndex((prevIndex) => (prevIndex + 1) % totalMovies);
   };
 
   const handlePrev = () => {
+    //setDirection('left');
     setCurrentIndex((prevIndex) => (prevIndex - 1 + totalMovies) % totalMovies);
   };
+
+  // // Resets direction
+  // useEffect(() => {
+  //   if (direction) {
+  //     const timer = setTimeout(() => setDirection(null), 600);
+  //     return () => clearTimeout(timer);
+  //   }
+  // }, [direction]);
 
   const handleCardClick = (movieId) => {
     const tmdbUrl = `https://www.themoviedb.org/movie/${movieId}`;
@@ -85,6 +96,7 @@ function App() {
   const [loadedMovies, setLoadedMovies] = useState([]);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [executionTime, setExecutionTime] = useState(null);
+  const [totalMovies, setTotalMovies] = useState(null);
   const [lastExecutedAlgorithm, setLastExecutedAlgorithm] = useState('');
 
   const fetchMovieSuggestions = async (query, setSuggestions) => {
@@ -135,6 +147,7 @@ function App() {
       console.log('API Response:', pathResponse.data); // Debugging
       const algorithmPath = pathResponse.data.path;
       const timeTaken = pathResponse.data.execution_time;
+      const totalMovies = pathResponse.data.total_movies;
 
       if (algorithmPath) {
         setPath(algorithmPath);
@@ -143,6 +156,7 @@ function App() {
 
         // Step 2: Start fetching processed movies progressively
         setExecutionTime(timeTaken);
+        setTotalMovies(totalMovies);
         setLastExecutedAlgorithm(algorithm);
         fetchProcessedMoviesProgressively();
       }
@@ -289,20 +303,21 @@ const fetchProcessedMoviesProgressively = async () => {
         </div>
       ) : (
         executionTime && (
-          <div className="loading">
-            <p>
-              {lastExecutedAlgorithm === 'dijkstra'
-                  ? "Dijkstra's Execution Time"
-                  : 'Bidirectional BFS Execution Time'}
-              : {executionTime.toFixed(2)} seconds
-            </p>
-          </div>
+            <div className="loading">
+              <p>
+                {lastExecutedAlgorithm === 'dijkstra'
+                    ? "Dijkstra's Execution Time"
+                    : 'Bidirectional BFS Execution Time'}
+                : {executionTime.toFixed(2)} seconds
+                <p>Total Unique Movies Explored: {totalMovies}</p>
+              </p>
+            </div>
         )
       )}
 
       {/* Display Path */}
       {path && (
-        <div className="path-result">
+          <div className="path-result">
           <h2>
             {lastExecutedAlgorithm === 'dijkstra'
               ? "Dijkstra's"
