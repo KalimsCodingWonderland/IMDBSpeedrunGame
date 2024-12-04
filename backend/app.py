@@ -393,7 +393,8 @@ def bidirectional_bfs_tmdb_by_id(start_movie_id, end_movie_id):
         logger.info("No path found")
         logger.info(f"Total unique movies explored: {len(processed_movies)}")
         last_processed_movies = list(processed_movies)
-        return None, list(processed_movies)
+        execution_time = time.perf_counter() - start_time
+        return None, list(processed_movies), execution_time
 
     # Reconstruct the path
     path_forward = []
@@ -422,8 +423,10 @@ def bidirectional_bfs_tmdb_by_id(start_movie_id, end_movie_id):
 
     # Store the processed movies globally
     last_processed_movies = list(processed_movies)
+    execution_time = time.perf_counter() - start_time
 
-    return full_path, list(processed_movies)
+
+    return full_path, list(processed_movies), execution_time
 
 def format_path(path):
     formatted_path = {
@@ -479,7 +482,7 @@ def find_path():
         return jsonify({'error': 'Invalid movie IDs provided'}), 400
 
     if algorithm == 'bfs':
-        path, processed_movies = bidirectional_bfs_tmdb_by_id(start_movie_id, end_movie_id)
+        path, processed_movies, execution_time = bidirectional_bfs_tmdb_by_id(start_movie_id, end_movie_id)
     elif algorithm == 'dijkstra':
         path, processed_movies, execution_time = dijkstra_tmdb_by_id(start_movie_id, end_movie_id)
     else:
