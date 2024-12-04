@@ -88,7 +88,6 @@ button:hover {
 /* Autocomplete Styles */
 .autocomplete {
   position: relative;
-  width: 100%;
 }
 
 .suggestions {

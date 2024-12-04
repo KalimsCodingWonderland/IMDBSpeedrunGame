@@ -2,25 +2,26 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import './styles.css';
 import MovieCardDeck from './MovieCardDeck';
-import GraphPage from './GraphPage'; // New component for the graph page
+import GraphPage from './GraphPage';
 
 function App() {
-  const [currentPage, setCurrentPage] = useState('home'); // State for navigation
+  const [currentPage, setCurrentPage] = useState('home');
   const [startMovie, setStartMovie] = useState('');
   const [endMovie, setEndMovie] = useState('');
   const [algorithm, setAlgorithm] = useState('dijkstra');
   const [startMovieSuggestions, setStartMovieSuggestions] = useState([]);
   const [endMovieSuggestions, setEndMovieSuggestions] = useState([]);
   const [path, setPath] = useState(null);
+  const [fullPath, setFullPath] = useState([]);
   const [processedMovies, setProcessedMovies] = useState([]);
   const [topProcessedMovies, setTopProcessedMovies] = useState([]);
-  const [error, setError] = useState(null);
   const [startMovieId, setStartMovieId] = useState(null);
   const [endMovieId, setEndMovieId] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [loadedMovies, setLoadedMovies] = useState([]);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [error, setError] = useState(null);
 
+  // Fetch movie suggestions
   const fetchMovieSuggestions = async (query, setSuggestions) => {
     if (query.length > 2) {
       try {
@@ -41,6 +42,7 @@ function App() {
     setSuggestions([]);
   };
 
+  // Search for the path using the selected algorithm
   const searchMovies = async () => {
     if (!startMovie || !endMovie) {
       setError('Please select both start and end movies.');
@@ -53,31 +55,63 @@ function App() {
     }
 
     setIsProcessing(true);
-    setProcessedMovies([]);
-    setLoadedMovies([]);
-    setTopProcessedMovies([]);
-    setPath(null);
     setError(null);
+    setPath(null);
+    setFullPath([]);
+    setProcessedMovies([]);
+    setTopProcessedMovies([]);
 
     try {
-      const pathResponse = await axios.get(
-        `/find_path?start_id=${startMovieId}&end_id=${endMovieId}&algorithm=${algorithm}`
-      );
-      const algorithmPath = pathResponse.data.path;
+      const res = await axios.get(`/find_path?start_id=${startMovieId}&end_id=${endMovieId}&algorithm=${algorithm}`);
+      const algorithmPath = res.data.path;
 
       if (algorithmPath) {
         setPath(algorithmPath);
-        setStartMovieId(algorithmPath.movies[0].id);
-        setEndMovieId(algorithmPath.movies[algorithmPath.movies.length - 1].id);
-        fetchProcessedMoviesProgressively();
+        setFullPath(algorithmPath.movies);
+        fetchProcessedMoviesProgressively(); // Start fetching processed movies dynamically
+        fetchAllProcessedMovies();
       }
     } catch (err) {
       console.error('Error finding path:', err);
       setError('Unable to find a path between the selected movies.');
+    } finally {
       setIsProcessing(false);
     }
   };
 
+  // Fetch all processed movies progressively
+  const fetchAllProcessedMovies = async () => {
+    try {
+      let offset = 0;
+      const batchSize = 250;
+
+      const fetchBatch = async () => {
+        setIsLoadingMore(true); // Show loading indicator
+        const res = await axios.get(`/get_processed_movies?offset=${offset}&limit=${batchSize}`);
+        const newMovies = res.data.processed_movies;
+
+        if (newMovies && newMovies.length > 0) {
+          setProcessedMovies((prevMovies) => [...prevMovies, ...newMovies]);
+          offset += newMovies.length;
+
+          if (offset < res.data.total_count) {
+            setTimeout(fetchBatch, 100); // Fetch next batch
+          } else {
+            setIsLoadingMore(false); // Stop loading once all movies are fetched
+          }
+        } else {
+          setIsLoadingMore(false); // Stop loading if no more movies
+        }
+      };
+
+      await fetchBatch();
+    } catch (err) {
+      console.error('Error fetching all processed movies:', err);
+      setIsLoadingMore(false);
+    }
+  };
+
+  // Fetch processed movies progressively
   const fetchProcessedMoviesProgressively = async () => {
     try {
       let offset = 0;
@@ -88,25 +122,22 @@ function App() {
         setIsLoadingMore(true);
         const res = await axios.get(`/get_processed_movies?offset=${offset}&limit=${batchSize}`);
         const newMovies = res.data.processed_movies;
-        const totalCount = res.data.total_count;
 
         if (newMovies && newMovies.length > 0) {
-          setLoadedMovies((prevMovies) => [...prevMovies, ...newMovies]);
+          setProcessedMovies((prevMovies) => [...prevMovies, ...newMovies]);
           setTopProcessedMovies((prevMovies) => {
             const updatedMovies = [...prevMovies, ...newMovies];
-            return updatedMovies.slice(0, 250);
+            return updatedMovies.slice(0, 250); // Keep the top 250 movies
           });
           offset += newMovies.length;
 
-          if (offset < Math.min(totalCount, maxMovies)) {
-            setTimeout(fetchBatch, 100);
+          if (offset < Math.min(res.data.total_count, maxMovies)) {
+            setTimeout(fetchBatch, 100); // Continue fetching next batch
           } else {
             setIsLoadingMore(false);
-            setIsProcessing(false);
           }
         } else {
           setIsLoadingMore(false);
-          setIsProcessing(false);
         }
       };
 
@@ -114,10 +145,10 @@ function App() {
     } catch (err) {
       console.error('Error fetching processed movies:', err);
       setIsLoadingMore(false);
-      setIsProcessing(false);
     }
   };
 
+  // Render the home page
   const renderHomePage = () => (
     <div>
       <h1>🎬 Movie Path Finder</h1>
@@ -191,8 +222,7 @@ function App() {
 
       {error && <p className="error">{error}</p>}
 
-      {isProcessing && <p>Processing movies... Please wait.</p>}
-
+      {/* Display Path */}
       {path && (
         <div>
           <h2>{algorithm === 'dijkstra' ? "Dijkstra's" : 'Bidirectional BFS'} Path:</h2>
@@ -211,20 +241,30 @@ function App() {
         </div>
       )}
 
-      {/* Only show after movie deck is loaded */}
-      {loadedMovies.length > 0 && !isLoadingMore && (
+      {/* Show Processed Movies and Graph Button */}
+      {topProcessedMovies.length > 0 && (
         <>
           <h2>Processed Movies:</h2>
           <MovieCardDeck movies={topProcessedMovies} startMovieId={startMovieId} endMovieId={endMovieId} />
           <button onClick={() => setCurrentPage('graph')}>View Interactive Graph</button>
         </>
       )}
+
+      {isLoadingMore && <p>Loading more processed movies...</p>}
     </div>
   );
 
   return (
     <div className="container">
-      {currentPage === 'home' ? renderHomePage() : <GraphPage navigateHome={() => setCurrentPage('home')} />}
+      {currentPage === 'home' ? (
+        renderHomePage()
+      ) : (
+        <GraphPage
+          navigateHome={() => setCurrentPage('home')}
+          fullPath={fullPath}
+          processedMovies={processedMovies}
+        />
+      )}
     </div>
   );
 }
