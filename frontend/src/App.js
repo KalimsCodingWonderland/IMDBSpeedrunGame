@@ -84,6 +84,7 @@ function App() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [loadedMovies, setLoadedMovies] = useState([]);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [executionTime, setExecutionTime] = useState(null);
 
   const fetchMovieSuggestions = async (query, setSuggestions) => {
     if (query.length > 2) {
@@ -130,7 +131,9 @@ function App() {
         `/find_path?start_id=${startMovieId}&end_id=${endMovieId}&algorithm=${algorithm}`
       );
 
+      console.log('API Response:', pathResponse.data); // Debugging
       const algorithmPath = pathResponse.data.path;
+      const timeTaken = pathResponse.data.execution_time;
 
       if (algorithmPath) {
         setPath(algorithmPath);
@@ -138,6 +141,7 @@ function App() {
         setEndMovieId(algorithmPath.movies[algorithmPath.movies.length - 1].id);
 
         // Step 2: Start fetching processed movies progressively
+        setExecutionTime(timeTaken);
         fetchProcessedMoviesProgressively();
       }
 
@@ -277,10 +281,16 @@ const fetchProcessedMoviesProgressively = async () => {
       {error && <p className="error">{error}</p>}
 
       {/* Loading Indicator */}
-      {isProcessing && (
+      {isProcessing ? (
         <div className="loading">
           <p>Processing movies... Please wait.</p>
         </div>
+      ) : (
+        executionTime && (
+          <div className="loading">
+            <p>Dijkstra's Execution Time: {executionTime.toFixed(2)} seconds</p>
+          </div>
+        )
       )}
 
       {/* Display Path */}
