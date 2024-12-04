@@ -1,92 +1,29 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import './styles.css';
-
-// Updated MovieCardDeck Component
-// In your MovieCardDeck component (inside App.js or a separate file)
-
-function MovieCardDeck({ movies, startMovieId, endMovieId }) {
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const totalMovies = movies.length;
-
-  const handleNext = () => {
-    setCurrentIndex((prevIndex) => (prevIndex + 1) % totalMovies);
-  };
-
-  const handlePrev = () => {
-    setCurrentIndex((prevIndex) => (prevIndex - 1 + totalMovies) % totalMovies);
-  };
-
-  const handleCardClick = (movieId) => {
-    const tmdbUrl = `https://www.themoviedb.org/movie/${movieId}`;
-    window.open(tmdbUrl, '_blank');
-  };
-
-  if (movies.length === 0) return null;
-
-  return (
-    <div className="movie-card-deck">
-      <button className="nav-arrow left-arrow" onClick={handlePrev}>
-        &#10094;
-      </button>
-      <div className="movie-card-container">
-        {movies.map((movie, index) => (
-          <div
-            key={movie.id}
-            className={`movie-card ${
-              index === currentIndex ? 'active' : 'inactive'
-            } ${
-              movie.id === startMovieId
-                ? 'start-movie'
-                : movie.id === endMovieId
-                ? 'end-movie'
-                : ''
-            }`}
-            style={{
-              backgroundImage: movie.poster_path
-                ? `url(https://image.tmdb.org/t/p/w500${movie.poster_path})`
-                : 'url(/default-poster.jpg)',
-            }}
-            onClick={() => handleCardClick(movie.id)}
-          >
-            <div className="movie-info">
-              <h3>{movie.title}</h3>
-              <p>{movie.year}</p>
-              {movie.connection && (
-                <p className="connection-info">
-                  Connected via: {movie.connection.type} -{' '}
-                  {movie.connection.name}
-                </p>
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
-      <button className="nav-arrow right-arrow" onClick={handleNext}>
-        &#10095;
-      </button>
-    </div>
-  );
-}
+import MovieCardDeck from './MovieCardDeck';
+import GraphPage from './GraphPage';
 
 function App() {
+  const [currentPage, setCurrentPage] = useState('home');
   const [startMovie, setStartMovie] = useState('');
   const [endMovie, setEndMovie] = useState('');
   const [algorithm, setAlgorithm] = useState('dijkstra');
   const [startMovieSuggestions, setStartMovieSuggestions] = useState([]);
   const [endMovieSuggestions, setEndMovieSuggestions] = useState([]);
   const [path, setPath] = useState(null);
+  const [fullPath, setFullPath] = useState([]);
   const [processedMovies, setProcessedMovies] = useState([]);
   const [topProcessedMovies, setTopProcessedMovies] = useState([]);
-  const [error, setError] = useState(null);
   const [startMovieId, setStartMovieId] = useState(null);
   const [endMovieId, setEndMovieId] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [loadedMovies, setLoadedMovies] = useState([]);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [executionTime, setExecutionTime] = useState(null);
   const [lastExecutedAlgorithm, setLastExecutedAlgorithm] = useState('');
+  const [error, setError] = useState(null);
 
+  // Fetch movie suggestions
   const fetchMovieSuggestions = async (query, setSuggestions) => {
     if (query.length > 2) {
       try {
@@ -102,88 +39,111 @@ function App() {
   };
 
   const handleSelectSuggestion = (movie, setMovie, setSuggestions, setMovieId) => {
-  setMovie(movie.title);
-  setMovieId(movie.id); // Set the selected movie ID
-  setSuggestions([]);
-};
+    setMovie(movie.title);
+    setMovieId(movie.id);
+    setSuggestions([]);
+  };
 
-
+  // Search for the path using the selected algorithm
   const searchMovies = async () => {
-  if (!startMovie || !endMovie) {
-    setError('Please select both start and end movies.');
-    return;
-  }
+    if (!startMovie || !endMovie) {
+      setError('Please select both start and end movies.');
+      return;
+    }
 
-  if (!startMovieId || !endMovieId) {
-    setError('Invalid movie selections. Please try again.');
-    return;
-  }
+    if (!startMovieId || !endMovieId) {
+      setError('Invalid movie selections. Please try again.');
+      return;
+    }
 
-  setIsProcessing(true);
-  setProcessedMovies([]);
-  setLoadedMovies([]);
-  setTopProcessedMovies([]);
-  setPath(null);
-  setError(null);
+    setIsProcessing(true);
+    setError(null);
+    setPath(null);
+    setFullPath([]);
+    setProcessedMovies([]);
+    setTopProcessedMovies([]);
 
-  try {
-      // Step 1: Fetch the path using movie IDs
-      const pathResponse = await axios.get(
-        `/find_path?start_id=${startMovieId}&end_id=${endMovieId}&algorithm=${algorithm}`
-      );
-
-      console.log('API Response:', pathResponse.data); // Debugging
-      const algorithmPath = pathResponse.data.path;
-      const timeTaken = pathResponse.data.execution_time;
+    try {
+      const res = await axios.get(`/find_path?start_id=${startMovieId}&end_id=${endMovieId}&algorithm=${algorithm}`);
+      console.log('API Response:', res.data); // Debugging
+      const algorithmPath = res.data.path;
+      const timeTaken = res.data.execution_time;
 
       if (algorithmPath) {
         setPath(algorithmPath);
-        setStartMovieId(algorithmPath.movies[0].id);
-        setEndMovieId(algorithmPath.movies[algorithmPath.movies.length - 1].id);
-
-        // Step 2: Start fetching processed movies progressively
+        setFullPath(algorithmPath.movies);
+        fetchProcessedMoviesProgressively(); // Start fetching processed movies dynamically
         setExecutionTime(timeTaken);
         setLastExecutedAlgorithm(algorithm);
-        fetchProcessedMoviesProgressively();
+        fetchAllProcessedMovies();
       }
-
     } catch (err) {
       console.error('Error finding path:', err);
       setError('Unable to find a path between the selected movies.');
+    } finally {
       setIsProcessing(false);
     }
   };
 
-const fetchProcessedMoviesProgressively = async () => {
+  // Fetch all processed movies progressively
+  const fetchAllProcessedMovies = async () => {
     try {
       let offset = 0;
       const batchSize = 250;
-      const maxMovies = 500; // Set this to the maximum number of movies you want to load
+
+      const fetchBatch = async () => {
+        setIsLoadingMore(true); // Show loading indicator
+        const res = await axios.get(`/get_processed_movies?offset=${offset}&limit=${batchSize}`);
+        const newMovies = res.data.processed_movies;
+
+        if (newMovies && newMovies.length > 0) {
+          setProcessedMovies((prevMovies) => [...prevMovies, ...newMovies]);
+          offset += newMovies.length;
+
+          if (offset < res.data.total_count) {
+            setTimeout(fetchBatch, 100); // Fetch next batch
+          } else {
+            setIsLoadingMore(false); // Stop loading once all movies are fetched
+          }
+        } else {
+          setIsLoadingMore(false); // Stop loading if no more movies
+        }
+      };
+
+      await fetchBatch();
+    } catch (err) {
+      console.error('Error fetching all processed movies:', err);
+      setIsLoadingMore(false);
+    }
+  };
+
+  // Fetch processed movies progressively
+  const fetchProcessedMoviesProgressively = async () => {
+    try {
+      let offset = 0;
+      const batchSize = 250;
+      const maxMovies = 500;
 
       const fetchBatch = async () => {
         setIsLoadingMore(true);
         const res = await axios.get(`/get_processed_movies?offset=${offset}&limit=${batchSize}`);
         const newMovies = res.data.processed_movies;
-        const totalCount = res.data.total_count; // New field from backend
 
         if (newMovies && newMovies.length > 0) {
-          setLoadedMovies(prevMovies => [...prevMovies, ...newMovies]);
-          setTopProcessedMovies(prevMovies => {
+          setProcessedMovies((prevMovies) => [...prevMovies, ...newMovies]);
+          setTopProcessedMovies((prevMovies) => {
             const updatedMovies = [...prevMovies, ...newMovies];
-            return updatedMovies.slice(0, 250);
+            return updatedMovies.slice(0, 250); // Keep the top 250 movies
           });
           offset += newMovies.length;
-          setTotalMoviesCount(totalCount);
 
-          if (offset < Math.min(totalCount, maxMovies)) {
-            setTimeout(fetchBatch, 100); // Fetch next batch after a short delay
+          if (offset < Math.min(res.data.total_count, maxMovies)) {
+            setTimeout(fetchBatch, 100); // Continue fetching next batch
           } else {
             setIsLoadingMore(false);
-            setIsProcessing(false);
           }
         } else {
           setIsLoadingMore(false);
-          setIsProcessing(false);
         }
       };
 
@@ -191,12 +151,12 @@ const fetchProcessedMoviesProgressively = async () => {
     } catch (err) {
       console.error('Error fetching processed movies:', err);
       setIsLoadingMore(false);
-      setIsProcessing(false);
     }
   };
 
-  return (
-    <div className="container">
+  // Render the home page
+  const renderHomePage = () => (
+    <div>
       <h1>🎬 Movie Path Finder</h1>
 
       {/* Start Movie Input */}
@@ -216,16 +176,10 @@ const fetchProcessedMoviesProgressively = async () => {
               <li
                 key={movie.id}
                 onClick={() =>
-                  handleSelectSuggestion(
-                    movie,
-                    setStartMovie,
-                    setStartMovieSuggestions,
-                    setStartMovieId
-                  )
+                  handleSelectSuggestion(movie, setStartMovie, setStartMovieSuggestions, setStartMovieId)
                 }
               >
-                <strong>{movie.title}</strong> ({movie.year}) - Directed by{' '}
-                {movie.director || 'N/A'}
+                <strong>{movie.title}</strong> ({movie.year})
               </li>
             ))}
           </ul>
@@ -249,16 +203,10 @@ const fetchProcessedMoviesProgressively = async () => {
               <li
                 key={movie.id}
                 onClick={() =>
-                  handleSelectSuggestion(
-                    movie,
-                    setEndMovie,
-                    setEndMovieSuggestions,
-                    setEndMovieId
-                  )
+                  handleSelectSuggestion(movie, setEndMovie, setEndMovieSuggestions, setEndMovieId)
                 }
               >
-                <strong>{movie.title}</strong> ({movie.year}) - Directed by{' '}
-                {movie.director || 'N/A'}
+                <strong>{movie.title}</strong> ({movie.year})
               </li>
             ))}
           </ul>
@@ -274,12 +222,10 @@ const fetchProcessedMoviesProgressively = async () => {
         </select>
       </div>
 
-      {/* Search Button */}
       <button onClick={searchMovies} disabled={isProcessing}>
         {isProcessing ? 'Searching...' : 'Find Path'}
       </button>
 
-      {/* Error Message */}
       {error && <p className="error">{error}</p>}
 
       {/* Loading Indicator */}
@@ -292,8 +238,8 @@ const fetchProcessedMoviesProgressively = async () => {
           <div className="loading">
             <p>
               {lastExecutedAlgorithm === 'dijkstra'
-                  ? "Dijkstra's Execution Time"
-                  : 'Bidirectional BFS Execution Time'}
+                ? "Dijkstra's Execution Time"
+                : 'Bidirectional BFS Execution Time'}
               : {executionTime.toFixed(2)} seconds
             </p>
           </div>
@@ -302,51 +248,46 @@ const fetchProcessedMoviesProgressively = async () => {
 
       {/* Display Path */}
       {path && (
-        <div className="path-result">
-          <h2>
-            {lastExecutedAlgorithm === 'dijkstra'
-              ? "Dijkstra's"
-              : 'Bidirectional BFS'}{' '}
-            Path:
-          </h2>
+        <div>
+          <h2>{lastExecutedAlgorithm === 'dijkstra' ? "Dijkstra's" : 'Bidirectional BFS'} Path:</h2>
           <ul>
             {path.movies.map((movie, index) => (
               <li key={movie.id}>
                 <p>
-                  <strong>{movie.title}</strong> ({movie.year})
+                  {movie.title} ({movie.year})
+                  {index < path.connections.length && (
+                    <span> Connected via: {path.connections[index]}</span>
+                  )}
                 </p>
-                {index < path.connections.length && (
-                  <p>
-                    Connected via: <em>{path.connections[index]}</em>
-                  </p>
-                )}
               </li>
             ))}
           </ul>
         </div>
       )}
 
-      {/* Processed Movies */}
-      {loadedMovies.length > 0 && (
+      {/* Show Processed Movies and Graph Button */}
+      {topProcessedMovies.length > 0 && (
         <>
           <h2>Processed Movies:</h2>
-          <MovieCardDeck
-            movies={topProcessedMovies}
-            startMovieId={startMovieId}
-            endMovieId={endMovieId}
-          />
-          {isLoadingMore && <p className="loading-more">Loading more movies...</p>}
+          <MovieCardDeck movies={topProcessedMovies} startMovieId={startMovieId} endMovieId={endMovieId} />
+          <button onClick={() => setCurrentPage('graph')}>View Interactive Graph</button>
         </>
       )}
 
-      {/* Similar Movies Section */}
-      {path && !processedMovies.length && (
-        <div className="similar-movies">
-          <h2>Similar Movies You Might Like:</h2>
-          <ul>
-            {/* Implement similar movies logic */}
-          </ul>
-        </div>
+      {isLoadingMore && <p>Loading more processed movies...</p>}
+    </div>
+  );
+
+  return (
+    <div className="container">
+      {currentPage === 'home' ? (
+        renderHomePage()
+      ) : (
+        <GraphPage
+          navigateHome={() => setCurrentPage('home')}
+          fullPath={fullPath}
+          processedMovies={processedMovies}
+        />
       )}
     </div>
   );

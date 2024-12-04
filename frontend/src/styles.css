@@ -18,7 +18,8 @@ body {
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
 }
 
-h1, h2 {
+h1,
+h2 {
   text-align: center;
   margin-bottom: 20px;
   font-weight: 500;
@@ -196,13 +197,15 @@ button:hover {
 }
 
 .left-arrow {
-  left: -120px; /* Position to the left of the deck */
+  left: -120px;
+  /* Position to the left of the deck */
   width: 50px;
   height: 100px;
 }
 
 .right-arrow {
-  right: -50px; /* Position to the right of the deck */
+  right: -50px;
+  /* Position to the right of the deck */
   width: 50px;
   height: 100px;
 }
