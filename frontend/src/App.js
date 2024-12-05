@@ -64,7 +64,7 @@ function App() {
     setError(null);
 
     try {
-        // Step 1: Fetch the path using movie IDs
+        // Fetch the path using movie IDs
         const pathResponse = await axios.get(
           `/find_path?start_id=${startMovieId}&end_id=${endMovieId}&algorithm=${algorithm}`
         );

@@ -16,12 +16,9 @@ logger = logging.getLogger(__name__)
 API_KEY = '9f981a4c4394f62d994979dbb6ee0230'
 BASE_URL = 'https://api.themoviedb.org/3/'
 
-# Global variable to store the last processed movies
-# WARNING: Using a global variable is not suitable for production environments.
-# Consider using a database or caching system like Redis for production use.
 last_processed_movies = []
 
-# Existing API functions remain the same
+#API functions
 def get_movie_credits(movie_id):
     url = f"{BASE_URL}movie/{movie_id}/credits"
     response = requests.get(url, params={'api_key': API_KEY})
@@ -77,7 +74,7 @@ def get_commonalities(current_movie_id, goal_movie_id):
 
     return 3 * common_cast + 2 * common_crew + common_genres
 
-# Caching API calls to improve performance
+# API calls
 @lru_cache(maxsize=10000)
 def get_movie_details_cached(movie_id):
     return get_movie_details(movie_id)
@@ -129,7 +126,7 @@ def dijkstra_tmdb_by_id(start_movie_id, end_movie_id):
     backward_visited = {end_movie_id: 0}
     backward_predecessors = {}
 
-    # To keep track of all processed movies
+    # Keeps track of all processed movies
     processed_movies = set([start_movie_id, end_movie_id])
 
     # Variable to store the meeting point
@@ -176,7 +173,7 @@ def dijkstra_tmdb_by_id(start_movie_id, end_movie_id):
                             logger.info(f"Forward Adding movie to heap: '{movie['title']}' (ID: {next_movie_id}) with cost {tentative_forward_cost}")
                             heapq.heappush(forward_heap, (tentative_forward_cost, next_movie_id))
 
-                            # Check if this node has been visited by backward search
+                            # Checks if this node has been visited by backward search
                             if next_movie_id in backward_visited:
                                 total_cost = tentative_forward_cost + backward_visited[next_movie_id]
                                 if total_cost < minimal_total_cost:
@@ -222,14 +219,14 @@ def dijkstra_tmdb_by_id(start_movie_id, end_movie_id):
                             logger.info(f"Backward Adding movie to heap: '{movie['title']}' (ID: {next_movie_id}) with cost {tentative_backward_cost}")
                             heapq.heappush(backward_heap, (tentative_backward_cost, next_movie_id))
 
-                            # Check if this node has been visited by forward search
+                            # Checks if this node has been visited by forward search
                             if next_movie_id in forward_visited:
                                 total_cost = tentative_backward_cost + forward_visited[next_movie_id]
                                 if total_cost < minimal_total_cost:
                                     minimal_total_cost = total_cost
                                     meeting_movie = next_movie_id
 
-        # Termination condition
+        # Error condition
         if meeting_movie is not None:
             # Reconstruct the path
             path_forward = []
@@ -381,7 +378,7 @@ def bidirectional_bfs_tmdb_by_id(start_movie_id, end_movie_id):
                     backward_queue.append(next_movie_id)
                     logger.info(f"Backward Adding movie to queue: '{movie['title']}' (ID: {next_movie_id})")
 
-                    # Check if this node has been visited by forward search
+                    # Checks if this node has been visited by forward search
                     if next_movie_id in forward_visited:
                         meeting_movie = next_movie_id
                         logger.info(f"Meeting point found at movie ID: {meeting_movie}")

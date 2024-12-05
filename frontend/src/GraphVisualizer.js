@@ -40,12 +40,8 @@ function GraphVisualizer({ fullPath, processedMovies }) {
 
         processedMovies.forEach((movie) => {
             const movieId = movie.id;
-            // For each movie, find connected movies (this is a simplification)
-            // In practice, you should use actual connections between movies
-            // For demonstration, we'll connect each movie to a random subset of other movies
-            // You should replace this with your actual link data
 
-            // For demonstration, let's assume each movie is connected to the next one
+            // Couldn't figure out true connection logic - assume each movie is connected to the next one
             const nextMovieIndex = processedMovies.findIndex((m) => m.id === movieId) + 1;
             if (nextMovieIndex < processedMovies.length) {
                 const targetMovie = processedMovies[nextMovieIndex];
