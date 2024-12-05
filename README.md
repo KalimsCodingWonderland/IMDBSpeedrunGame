@@ -2,6 +2,9 @@
 
 * Instructions for running the project on your machine
 
+Ensure Node is installed for npm start later in the instructions
+https://nodejs.org/en/download/package-manager
+
 1. **Clone the Repository and run backend flask app**:
   ```bash
   git clone https://github.com/KalimsCodingWonderland/IMDBSpeedrunGame.git
