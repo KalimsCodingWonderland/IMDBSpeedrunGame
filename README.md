@@ -12,11 +12,11 @@ https://nodejs.org/en/download/package-manager
   cd backend
   python3 app.py
 ```
-2. **Run Frontend React app**
+2. **Run Frontend React app**:
    ```bash
    cd IMDBSpeedrunGame
    cd frontend
    npm start
-   ```
+```
 3. **Access Link**
 Local: http://localhost:3000
