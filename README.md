@@ -1,4 +1,4 @@
-This project was created by Kalim Qazi, Volodymyr Petrushkevych, and Lucas Perez
+# This project was created by Kalim Qazi, Volodymyr Petrushkevych, and Lucas Perez
 
 * Instructions for running the project on your machine
 
