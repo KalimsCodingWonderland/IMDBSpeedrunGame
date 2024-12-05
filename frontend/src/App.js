@@ -235,7 +235,7 @@ function App() {
       <div className="algorithm-selection">
         <label>Select Algorithm:</label>
         <select value={algorithm} onChange={(e) => setAlgorithm(e.target.value)}>
-          <option value="dijkstra">Dijkstra's Algorithm</option>
+          <option value="dijkstra">Bidirectional Dijkstra's Algorithm</option>
           <option value="bfs">Bidirectional BFS</option>
         </select>
       </div>
