@@ -20,6 +20,7 @@ function App() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [executionTime, setExecutionTime] = useState(null);
+  const [totalMovies, setTotalMovies] = useState(null);
   const [lastExecutedAlgorithm, setLastExecutedAlgorithm] = useState('');
   const [error, setError] = useState(null);
 
@@ -39,41 +40,47 @@ function App() {
   };
 
   const handleSelectSuggestion = (movie, setMovie, setSuggestions, setMovieId) => {
-    setMovie(movie.title);
-    setMovieId(movie.id);
-    setSuggestions([]);
-  };
+  setMovie(movie.title);
+  setMovieId(movie.id); // Set the selected movie ID
+  setSuggestions([]);
+};
 
   // Search for the path using the selected algorithm
   const searchMovies = async () => {
-    if (!startMovie || !endMovie) {
-      setError('Please select both start and end movies.');
-      return;
-    }
+  if (!startMovie || !endMovie) {
+    setError('Please select both start and end movies.');
+    return;
+  }
 
-    if (!startMovieId || !endMovieId) {
-      setError('Invalid movie selections. Please try again.');
-      return;
-    }
+  if (!startMovieId || !endMovieId) {
+    setError('Invalid movie selections. Please try again.');
+    return;
+  }
 
-    setIsProcessing(true);
-    setError(null);
-    setPath(null);
-    setFullPath([]);
-    setProcessedMovies([]);
-    setTopProcessedMovies([]);
+  setIsProcessing(true);
+  setProcessedMovies([]);
+  setLoadedMovies([]);
+  setTopProcessedMovies([]);
+  setPath(null);
+  setError(null);
 
-    try {
-      const res = await axios.get(`/find_path?start_id=${startMovieId}&end_id=${endMovieId}&algorithm=${algorithm}`);
-      console.log('API Response:', res.data); // Debugging
-      const algorithmPath = res.data.path;
-      const timeTaken = res.data.execution_time;
+  try {
+      // Step 1: Fetch the path using movie IDs
+      const pathResponse = await axios.get(
+        `/find_path?start_id=${startMovieId}&end_id=${endMovieId}&algorithm=${algorithm}`
+      );
+
+      console.log('API Response:', pathResponse.data); // Debugging
+      const algorithmPath = pathResponse.data.path;
+      const timeTaken = pathResponse.data.execution_time;
+      const totalMovies = pathResponse.data.total_movies;
 
       if (algorithmPath) {
         setPath(algorithmPath);
         setFullPath(algorithmPath.movies);
         fetchProcessedMoviesProgressively(); // Start fetching processed movies dynamically
         setExecutionTime(timeTaken);
+        setTotalMovies(totalMovies);
         setLastExecutedAlgorithm(algorithm);
         fetchAllProcessedMovies();
       }
@@ -176,10 +183,16 @@ function App() {
               <li
                 key={movie.id}
                 onClick={() =>
-                  handleSelectSuggestion(movie, setStartMovie, setStartMovieSuggestions, setStartMovieId)
+                  handleSelectSuggestion(
+                    movie,
+                    setStartMovie,
+                    setStartMovieSuggestions,
+                    setStartMovieId
+                  )
                 }
               >
-                <strong>{movie.title}</strong> ({movie.year})
+                <strong>{movie.title}</strong> ({movie.year}) - Directed by{' '}
+                {movie.director || 'N/A'}
               </li>
             ))}
           </ul>
@@ -203,10 +216,16 @@ function App() {
               <li
                 key={movie.id}
                 onClick={() =>
-                  handleSelectSuggestion(movie, setEndMovie, setEndMovieSuggestions, setEndMovieId)
+                  handleSelectSuggestion(
+                    movie,
+                    setEndMovie,
+                    setEndMovieSuggestions,
+                    setEndMovieId
+                  )
                 }
               >
-                <strong>{movie.title}</strong> ({movie.year})
+                <strong>{movie.title}</strong> ({movie.year}) - Directed by{' '}
+                {movie.director || 'N/A'}
               </li>
             ))}
           </ul>
@@ -222,10 +241,12 @@ function App() {
         </select>
       </div>
 
+      {/* Search Button */}
       <button onClick={searchMovies} disabled={isProcessing}>
         {isProcessing ? 'Searching...' : 'Find Path'}
       </button>
 
+      {/* Error Message */}
       {error && <p className="error">{error}</p>}
 
       {/* Loading Indicator */}
@@ -235,38 +256,46 @@ function App() {
         </div>
       ) : (
         executionTime && (
-          <div className="loading">
-            <p>
-              {lastExecutedAlgorithm === 'dijkstra'
-                ? "Dijkstra's Execution Time"
-                : 'Bidirectional BFS Execution Time'}
-              : {executionTime.toFixed(2)} seconds
-            </p>
-          </div>
+            <div className="loading">
+              <p>
+                {lastExecutedAlgorithm === 'dijkstra'
+                    ? "Dijkstra's Execution Time"
+                    : 'Bidirectional BFS Execution Time'}
+                : {executionTime.toFixed(2)} seconds
+                <p>Total Unique Movies Explored: {totalMovies}</p>
+              </p>
+            </div>
         )
       )}
 
       {/* Display Path */}
       {path && (
-        <div>
-          <h2>{lastExecutedAlgorithm === 'dijkstra' ? "Dijkstra's" : 'Bidirectional BFS'} Path:</h2>
+          <div className="path-result">
+          <h2>
+            {lastExecutedAlgorithm === 'dijkstra'
+              ? "Dijkstra's"
+              : 'Bidirectional BFS'}{' '}
+            Path:
+          </h2>
           <ul>
             {path.movies.map((movie, index) => (
               <li key={movie.id}>
                 <p>
-                  {movie.title} ({movie.year})
-                  {index < path.connections.length && (
-                    <span> Connected via: {path.connections[index]}</span>
-                  )}
+                  <strong>{movie.title}</strong> ({movie.year})
                 </p>
+                {index < path.connections.length && (
+                  <p>
+                    Connected via: <em>{path.connections[index]}</em>
+                  </p>
+                )}
               </li>
             ))}
           </ul>
         </div>
       )}
 
-      {/* Show Processed Movies and Graph Button */}
-      {topProcessedMovies.length > 0 && (
+      {/* Processed Movies */}
+      {loadedMovies.length > 0 && (
         <>
           <h2>Processed Movies:</h2>
           <MovieCardDeck movies={topProcessedMovies} startMovieId={startMovieId} endMovieId={endMovieId} />
