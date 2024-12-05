@@ -47,49 +47,48 @@ function App() {
 
   // Search for the path using the selected algorithm
   const searchMovies = async () => {
-  if (!startMovie || !endMovie) {
-    setError('Please select both start and end movies.');
-    return;
-  }
-
-  if (!startMovieId || !endMovieId) {
-    setError('Invalid movie selections. Please try again.');
-    return;
-  }
-
-  setIsProcessing(true);
-  setProcessedMovies([]);
-  setLoadedMovies([]);
-  setTopProcessedMovies([]);
-  setPath(null);
-  setError(null);
-
-  try {
-      // Step 1: Fetch the path using movie IDs
-      const pathResponse = await axios.get(
-        `/find_path?start_id=${startMovieId}&end_id=${endMovieId}&algorithm=${algorithm}`
-      );
-
-      console.log('API Response:', pathResponse.data); // Debugging
-      const algorithmPath = pathResponse.data.path;
-      const timeTaken = pathResponse.data.execution_time;
-      const totalMovies = pathResponse.data.total_movies;
-
-      if (algorithmPath) {
-        setPath(algorithmPath);
-        setFullPath(algorithmPath.movies);
-        fetchProcessedMoviesProgressively(); // Start fetching processed movies dynamically
-        setExecutionTime(timeTaken);
-        setTotalMovies(totalMovies);
-        setLastExecutedAlgorithm(algorithm);
-        fetchAllProcessedMovies();
-      }
-    } catch (err) {
-      console.error('Error finding path:', err);
-      setError('Unable to find a path between the selected movies.');
-    } finally {
-      setIsProcessing(false);
+    if (!startMovie || !endMovie) {
+      setError('Please select both start and end movies.');
+      return;
     }
+
+    if (!startMovieId || !endMovieId) {
+      setError('Invalid movie selections. Please try again.');
+      return;
+    }
+
+    setIsProcessing(true);
+    setProcessedMovies([]);
+    setTopProcessedMovies([]);
+    setPath(null);
+    setError(null);
+
+    try {
+        // Step 1: Fetch the path using movie IDs
+        const pathResponse = await axios.get(
+          `/find_path?start_id=${startMovieId}&end_id=${endMovieId}&algorithm=${algorithm}`
+        );
+
+        console.log('API Response:', pathResponse.data); // Debugging
+        const algorithmPath = pathResponse.data.path;
+        const timeTaken = pathResponse.data.execution_time;
+        const totalMovies = pathResponse.data.total_movies;
+
+        if (algorithmPath) {
+          setPath(algorithmPath);
+          setFullPath(algorithmPath.movies);
+          fetchProcessedMoviesProgressively(); // Start fetching processed movies dynamically
+          setExecutionTime(timeTaken);
+          setTotalMovies(totalMovies);
+          setLastExecutedAlgorithm(algorithm);
+          fetchAllProcessedMovies();
+        }
+      } catch (err) {
+        console.error('Error finding path:', err);
+        setError('Unable to find a path between the selected movies.');
+      } finally {
+        setIsProcessing(false);
+      }
   };
 
   // Fetch all processed movies progressively
@@ -295,7 +294,7 @@ function App() {
       )}
 
       {/* Processed Movies */}
-      {loadedMovies.length > 0 && (
+      {topProcessedMovies.length > 0 && (
         <>
           <h2>Processed Movies:</h2>
           <MovieCardDeck movies={topProcessedMovies} startMovieId={startMovieId} endMovieId={endMovieId} />
